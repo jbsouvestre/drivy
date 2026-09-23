@@ -102,7 +102,11 @@ export class Headlights {
     this.level += (target - this.level) * Math.min(1, FADE_SPEED * dt);
     if (Math.abs(this.level - target) < 0.001) this.level = target;
 
-    for (const light of this.lights) light.intensity = this.level * INTENSITY;
+    for (const light of this.lights) {
+      light.intensity = this.level * INTENSITY;
+      // No point rendering shadow maps for lights that are off.
+      light.castShadow = this.level > 0.001;
+    }
     this.beamMaterial.uniforms.uOpacity.value = this.level * BEAM_OPACITY;
     for (const bulb of this.bulbs) bulb.emissiveIntensity = 0.4 + this.level * 2.6;
   }

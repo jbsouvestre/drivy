@@ -1,5 +1,6 @@
 import type { Journal } from '../safari/Journal';
-import { SPECIES } from '../safari/species';
+import { SPECIES, type Species } from '../safari/species';
+import { BIOMES } from '../world/biomes';
 import { starText } from './PhotoHud';
 
 /** The field journal overlay: one card per species, silhouettes until photographed. */
@@ -33,38 +34,56 @@ export class JournalView {
     const p = this.journal.progress();
     this.progress.textContent = `${p.species} / ${p.speciesTotal} species · ${p.behaviors} / ${p.behaviorsTotal} behaviours`;
 
-    this.body.innerHTML = SPECIES.map((sp) => {
-      const e = this.journal.entry(sp.id);
-      const seen = new Set(e?.behaviors ?? []);
-      const chips = sp.behaviors
-        .map((b) => `<span class="chip${seen.has(b.id) ? ' seen' : ''}">${seen.has(b.id) ? b.label : '?'}</span>`)
-        .join('');
-      if (!e) {
+    // One section per biome; undiscovered biomes stay a mystery.
+    this.body.innerHTML = BIOMES.map((biome) => {
+      if (!this.journal.hasVisited(biome.id)) {
         return `
-          <article class="card unknown">
-            <div class="card-photo"><span class="silhouette">${sp.emoji}</span></div>
-            <div class="card-body">
-              <h3>???${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
-              <p class="hint">${sp.hint}</p>
-              <div class="chips">${chips}</div>
-            </div>
-          </article>`;
+          <section class="biome-section locked">
+            <h3 class="biome-title"><span class="silhouette-emoji">${biome.emoji}</span> ??? <small>Not discovered yet · keep exploring further from home</small></h3>
+          </section>`;
       }
-      const file = `drivy-${sp.id}.jpg`;
+      const bp = this.journal.progress(biome.id);
+      const cards = SPECIES.filter((sp) => sp.biome === biome.id).map((sp) => this.card(sp)).join('');
       return `
-        <article class="card">
-          <div class="card-photo">
-            <img src="${e.photo}" alt="${sp.name}" />
-            <a class="save" href="${e.photo}" download="${file}" title="Save photo">⤓</a>
-          </div>
+        <section class="biome-section">
+          <h3 class="biome-title">${biome.emoji} ${biome.name} <small>${bp.species} / ${bp.speciesTotal} species · ${bp.behaviors} / ${bp.behaviorsTotal} behaviours</small></h3>
+          <div class="journal-cards">${cards}</div>
+        </section>`;
+    }).join('');
+  }
+
+  /** One species card: its best photo, or a silhouette and a hint until photographed. */
+  private card(sp: Species): string {
+    const e = this.journal.entry(sp.id);
+    const seen = new Set(e?.behaviors ?? []);
+    const chips = sp.behaviors
+      .map((b) => `<span class="chip${seen.has(b.id) ? ' seen' : ''}">${seen.has(b.id) ? b.label : '?'}</span>`)
+      .join('');
+    if (!e) {
+      return `
+        <article class="card unknown">
+          <div class="card-photo"><span class="silhouette">${sp.emoji}</span></div>
           <div class="card-body">
-            <h3>${sp.emoji} ${sp.name}${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
-            <p class="stars">${starText(e.stars)}</p>
+            <h3>???${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
+            <p class="hint">${sp.hint}</p>
             <div class="chips">${chips}</div>
-            <p class="meta">seed · ${escapeHtml(e.seed)}</p>
           </div>
         </article>`;
-    }).join('');
+    }
+    const file = `drivy-${sp.id}.jpg`;
+    return `
+      <article class="card">
+        <div class="card-photo">
+          <img src="${e.photo}" alt="${sp.name}" />
+          <a class="save" href="${e.photo}" download="${file}" title="Save photo">⤓</a>
+        </div>
+        <div class="card-body">
+          <h3>${sp.emoji} ${sp.name}${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
+          <p class="stars">${starText(e.stars)}</p>
+          <div class="chips">${chips}</div>
+          <p class="meta">seed · ${escapeHtml(e.seed)}</p>
+        </div>
+      </article>`;
   }
 }
 

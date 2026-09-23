@@ -40,6 +40,7 @@
         <button id="hud-journal" class="pill pill-btn" type="button"><kbd>J</kbd> journal</button>
         <span class="pill subtle photo-hint"><kbd>C</kbd> camera</span>
         <span class="pill subtle"><kbd>Esc</kbd> menu</span>
+        <span id="hud-biome" class="pill biome-pill">🌾 Meadow</span>
         <span class="pill clock" title="Hold T to fast-forward time"><span id="clock-icon">☀️</span> <strong id="clock-time">08:00</strong></span>
       </div>
       <div id="speedo" class="speedo"></div>
@@ -131,7 +132,7 @@
       <header class="journal-head">
         <div>
           <h2 id="journal-title" class="controls-title">Field Journal</h2>
-          <p class="journal-sub">🌾 Meadow · <span class="journal-progress"></span></p>
+          <p class="journal-sub">All biomes · <span class="journal-progress"></span></p>
         </div>
         <form method="dialog"><button class="close-btn" type="submit" aria-label="Close journal">✕</button></form>
       </header>
@@ -139,6 +140,7 @@
     </dialog>
 
     <div id="flash" class="flash" aria-hidden="true"></div>
+    <div id="biome-banner" class="biome-banner" aria-live="polite"></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

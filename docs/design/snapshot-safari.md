@@ -125,8 +125,12 @@ Extra animals in frame add a small "group shot" bonus.
    fast or close, sneaking up slowly. The chime sound (`Q`).
    Implemented as an alertness meter per animal ("?" when wary; a stopped car calms them),
    with shyness scaled by `difficultyAt()` (distance from spawn).
-3. **Biome system.** Biome field + difficulty from distance, blending, per-biome
+3. ✅ **Biome system.** Biome field + difficulty from distance, blending, per-biome
    palette, props and terrain. First new biome: **Blossom Woods** with 3 species.
+   Implemented as seeded Voronoi regions (~190 units) in `world/biomes.ts`; Blossom Woods
+   starts ~160 units out, with blossom trees, flower glades, falling petals, and
+   deer (herds, very shy), foxes (sit, pounce) and night-only hedgehogs (curl up when startled).
+   Biome HUD pill, first-visit banner, journal grouped by biome (undiscovered = locked).
 4. **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.
 5. **Nice-to-haves.** Photo requests from a pelican editor, weather (rain → frogs, snow),
    ambient music per biome, cosmetic unlocks from journal completion.

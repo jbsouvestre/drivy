@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type PropKind = 'roundTree' | 'pineTree' | 'stone';
+export type PropKind = 'roundTree' | 'pineTree' | 'stone' | 'blossomTree' | 'flowers';
 
 /** One placed prop. Its instance matrices are recomposed when it wobbles. */
 export interface Prop {
@@ -33,7 +33,7 @@ interface PartDef {
 
 interface PropDef {
   parts: PartDef[];
-  /** Collision radius at scale 1. */
+  /** Collision radius at scale 1 (0 = decoration you can drive through). */
   radius: number;
   /** How far the prop tilts when bumped, in radians at full impact. */
   wobble: number;
@@ -63,7 +63,56 @@ function buildDefs(): Record<PropKind, PropDef> {
 
   const stone = new THREE.DodecahedronGeometry(0.8, 0).scale(1, 0.7, 1).translate(0, 0.3, 0);
 
+  // Blossom tree: a slender trunk under a fluffy cloud of blossom balls.
+  const blossomTrunk = mergeGeometries([
+    trunk(2),
+    new THREE.CylinderGeometry(0.08, 0.13, 0.9, 7).translate(0, 0.45, 0).rotateZ(0.7).translate(0.05, 1.3, 0),
+  ]);
+  const blossomCanopy = mergeGeometries(
+    [
+      [0, 2.45, 0, 1.05],
+      [0.85, 2.25, 0.3, 0.72],
+      [-0.75, 2.3, -0.2, 0.78],
+      [0.1, 3.0, -0.35, 0.72],
+      [-0.25, 2.85, 0.6, 0.62],
+      [0.55, 2.9, -0.55, 0.5],
+    ].map(([x, y, z, r]) => new THREE.SphereGeometry(r, 12, 9).translate(x, y, z)),
+  );
+
+  // Flower patch: a few little blooms on short stems (a fixed, pleasing layout).
+  const layout = [
+    [0, 0],
+    [0.35, 0.18],
+    [-0.3, 0.25],
+    [0.15, -0.35],
+    [-0.28, -0.22],
+    [0.45, -0.15],
+    [-0.05, 0.42],
+  ];
+  const stems = mergeGeometries(
+    layout.map(([x, z], i) => new THREE.CylinderGeometry(0.018, 0.018, 0.28 + (i % 3) * 0.06, 3, 1, true).translate(x, 0.14 + (i % 3) * 0.03, z)),
+  );
+  const blooms = mergeGeometries(
+    layout.map(([x, z], i) => new THREE.SphereGeometry(0.085, 6, 4).scale(1, 0.7, 1).translate(x, 0.3 + (i % 3) * 0.06, z)),
+  );
+
   return {
+    blossomTree: {
+      radius: 0.8,
+      wobble: 0.24,
+      parts: [
+        { geometry: blossomTrunk, material: mat('#b89094') },
+        { geometry: blossomCanopy, material: mat('#ffffff'), palette: ['#ffc8dd', '#ffafcc', '#ffd6e8', '#fff0f6', '#f7c6e6'] },
+      ],
+    },
+    flowers: {
+      radius: 0,
+      wobble: 0,
+      parts: [
+        { geometry: stems, material: mat('#9fd8a4') },
+        { geometry: blooms, material: mat('#ffffff'), palette: ['#ffafcc', '#cdb4db', '#fff1a8', '#a0c4ff', '#ffffff'] },
+      ],
+    },
     roundTree: {
       radius: 0.9,
       wobble: 0.22,

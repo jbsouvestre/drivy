@@ -9,6 +9,7 @@ import { SkidMarks } from './game/SkidMarks';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
 import type { Collider } from './world/props';
+import { biome, type BiomeId } from './world/biomes';
 import { DayNight } from './world/DayNight';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
@@ -22,7 +23,9 @@ import { Speedometer } from './ui/Speedometer';
 import { Birds } from './wildlife/Birds';
 import { Ducks } from './wildlife/Ducks';
 import { Fireflies } from './wildlife/Fireflies';
+import { GroundAnimals } from './wildlife/GroundAnimals';
 import { Owls } from './wildlife/Owls';
+import { Petals } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
 import type { CarPresence } from './wildlife/awareness';
 
@@ -45,7 +48,8 @@ const PHOTO_HEIGHT = 360;
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Capped at 1.5: on big Retina windows full 2× resolution halves the frame rate for little visible gain.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -92,7 +96,9 @@ const birds = new Birds();
 const squirrels = new Squirrels(world);
 const owls = new Owls(world);
 const fireflies = new Fireflies();
-scene.add(birds.group, squirrels.group, owls.group, fireflies.points);
+const petals = new Petals();
+const groundAnimals = new GroundAnimals(world);
+scene.add(birds.group, squirrels.group, owls.group, fireflies.points, petals.points, groundAnimals.group);
 
 const rig = new CameraRig(window.innerWidth / window.innerHeight);
 const input = new Input();
@@ -113,6 +119,8 @@ const showControlsBtn = document.querySelector<HTMLButtonElement>('#show-control
 const hudHelpBtn = document.querySelector<HTMLButtonElement>('#hud-help')!;
 const clockIcon = document.querySelector<HTMLElement>('#clock-icon')!;
 const clockTime = document.querySelector<HTMLElement>('#clock-time')!;
+const biomePill = document.querySelector<HTMLElement>('#hud-biome')!;
+const biomeBanner = document.querySelector<HTMLElement>('#biome-banner')!;
 const honkBubble = document.querySelector<HTMLDivElement>('#honk')!;
 const horn = new Horn();
 const journalView = new JournalView(journal);
@@ -128,6 +136,7 @@ function loadSeed(seedText: string): void {
   squirrels.clear();
   owls.clear();
   ducks.clear();
+  groundAnimals.clear();
   car.reset();
   skids.clear();
   world.update(car.position, 0);
@@ -283,6 +292,7 @@ function collectSubjects(): Subject[] {
   birds.collectSubjects(subjects);
   owls.collectSubjects(subjects);
   fireflies.collectSubjects(subjects);
+  groundAnimals.collectSubjects(subjects);
   return subjects;
 }
 
@@ -320,6 +330,28 @@ function updatePhotoHint(dt: number): void {
   photoHud.setHint(id, shot.stars, id ? !!journal.entry(id) : false);
 }
 
+let currentBiome: BiomeId | null = null;
+let biomeTimer = 0;
+let bannerTimer = 0;
+
+/** Track which biome the car is in: update the HUD pill, celebrate first visits. */
+function updateBiome(dt: number): void {
+  biomeTimer -= dt;
+  if (biomeTimer > 0) return;
+  biomeTimer = 0.5;
+  const id = world.dominantBiome(car.position.x, car.position.z);
+  if (id === currentBiome) return;
+  currentBiome = id;
+  const def = biome(id);
+  biomePill.textContent = `${def.emoji} ${def.name}`;
+  if (playing && journal.visitBiome(id)) {
+    biomeBanner.innerHTML = `<span class="bb-emoji">${def.emoji}</span><strong>${def.name}</strong><small>New biome discovered! New animals to find.</small>`;
+    biomeBanner.classList.add('show');
+    window.clearTimeout(bannerTimer);
+    bannerTimer = window.setTimeout(() => biomeBanner.classList.remove('show'), 3800);
+  }
+}
+
 /** What the animals can sense about the car this frame. */
 const presence: CarPresence = { position: car.position, speed: 0, difficulty: 0 };
 let chimeCooldown = 0;
@@ -333,6 +365,7 @@ function chime(): void {
   squirrels.chime(car.position);
   ducks.chime(car.position);
   owls.chime(car.position);
+  groundAnimals.chime(car.position);
   fireflies.attract(car.position);
   popHonkBubble(CHIME_WORDS);
   bubbleTime = BUBBLE_LINGER * 3;
@@ -375,6 +408,7 @@ function frame(timestamp: number): void {
     squirrels.scare(car.position);
     owls.scare(car.position);
     ducks.scare(car.position);
+    groundAnimals.scare(car.position);
     fireflies.scare(car.position);
     popHonkBubble();
     bubbleTime = BUBBLE_LINGER;
@@ -413,7 +447,10 @@ function frame(timestamp: number): void {
     squirrels.update(dt, car.position, dayNight.isNight, presence);
     owls.update(dt, car.position, dayNight.darkness, presence);
     ducks.update(dt, car.position, dayNight.darkness, presence);
+    groundAnimals.update(dt, car.position, dayNight.darkness, presence);
     fireflies.update(dt, car.position, dayNight.darkness, world);
+    petals.update(dt, car.position, world.biomeWeight(car.position.x, car.position.z, 'blossom'));
+    updateBiome(dt);
   }
   // Follow the car along the ground so honk hops don't bob the camera.
   groundFocus.set(car.position.x, car.ground, car.position.z);

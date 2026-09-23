@@ -1,6 +1,5 @@
 import type * as THREE from 'three';
-
-export type BiomeId = 'meadow';
+import type { BiomeId } from '../world/biomes';
 
 export type SpeciesId =
   | 'duck'
@@ -12,7 +11,10 @@ export type SpeciesId =
   | 'mint-tit'
   | 'owl'
   | 'snowy-owl'
-  | 'firefly';
+  | 'firefly'
+  | 'deer'
+  | 'fox'
+  | 'hedgehog';
 
 export interface Behavior {
   id: string;
@@ -96,6 +98,33 @@ export const SPECIES: Species[] = [
     hint: 'Glows near the ground after dusk.',
     rare: false,
     behaviors: [b('glowing', 'Glowing'), b('swarm', 'Swarm')],
+  },
+  {
+    id: 'deer',
+    name: 'Blossom Deer',
+    biome: 'blossom',
+    emoji: '🦌',
+    hint: 'Grazes in blossom glades. Very shy.',
+    rare: false,
+    behaviors: [b('grazing', 'Grazing'), b('walking', 'Walking'), b('curious', 'Curious'), b('bounding', 'Bounding'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+  },
+  {
+    id: 'fox',
+    name: 'Fox',
+    biome: 'blossom',
+    emoji: '🦊',
+    hint: 'Trots between the blossom trees.',
+    rare: false,
+    behaviors: [b('trotting', 'Trotting'), b('sitting', 'Sitting'), b('pouncing', 'Pouncing'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+  },
+  {
+    id: 'hedgehog',
+    name: 'Hedgehog',
+    biome: 'blossom',
+    emoji: '🦔',
+    hint: 'Snuffles about the woods after dusk.',
+    rare: false,
+    behaviors: [b('shuffling', 'Shuffling'), b('sniffing', 'Sniffing'), b('curled', 'Curled up'), b('curious', 'Curious')],
   },
 ];
 

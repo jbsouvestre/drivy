@@ -1,6 +1,8 @@
+import type { BiomeId } from '../world/biomes';
 import { SPECIES, type SpeciesId } from './species';
 
 const STORAGE_KEY = 'drivy.journal.v1';
+const BIOMES_KEY = 'drivy.biomes.v1';
 
 export interface JournalEntry {
   /** Best star rating so far (1–3). */
@@ -33,15 +35,35 @@ export interface RecordResult {
  */
 export class Journal {
   private entries: Partial<Record<SpeciesId, JournalEntry>> = {};
+  private readonly visited = new Set<BiomeId>(['meadow']);
   private readonly listeners = new Set<() => void>();
 
   constructor() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) this.entries = JSON.parse(raw) as typeof this.entries;
+      const biomes = localStorage.getItem(BIOMES_KEY);
+      if (biomes) for (const b of JSON.parse(biomes) as BiomeId[]) this.visited.add(b);
     } catch {
       this.entries = {};
     }
+  }
+
+  hasVisited(id: BiomeId): boolean {
+    return this.visited.has(id);
+  }
+
+  /** Mark a biome as discovered; returns true the first time. */
+  visitBiome(id: BiomeId): boolean {
+    if (this.visited.has(id)) return false;
+    this.visited.add(id);
+    try {
+      localStorage.setItem(BIOMES_KEY, JSON.stringify([...this.visited]));
+    } catch {
+      // Session-only if storage is unavailable.
+    }
+    for (const l of this.listeners) l();
+    return true;
   }
 
   entry(id: SpeciesId): JournalEntry | undefined {
@@ -66,19 +88,22 @@ export class Journal {
     return { newSpecies: !prev, newBehaviors, newBest: newBest && !!prev };
   }
 
-  /** Overall progress: species found and behaviours collected. */
-  progress(): { species: number; speciesTotal: number; behaviors: number; behaviorsTotal: number } {
+  /** Progress (species found, behaviours collected), overall or for one biome. */
+  progress(biome?: BiomeId): { species: number; speciesTotal: number; behaviors: number; behaviorsTotal: number } {
     let species = 0;
+    let speciesTotal = 0;
     let behaviors = 0;
     let behaviorsTotal = 0;
     for (const s of SPECIES) {
+      if (biome && s.biome !== biome) continue;
+      speciesTotal++;
       const e = this.entries[s.id];
       behaviorsTotal += s.behaviors.length;
       if (!e) continue;
       species++;
       behaviors += e.behaviors.length;
     }
-    return { species, speciesTotal: SPECIES.length, behaviors, behaviorsTotal };
+    return { species, speciesTotal, behaviors, behaviorsTotal };
   }
 
   onChange(listener: () => void): void {

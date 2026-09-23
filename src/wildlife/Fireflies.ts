@@ -47,7 +47,7 @@ export class Fireflies {
       uniforms: {
         uTime: { value: 0 },
         uAmount: { value: 0 },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) },
+        uPixelRatio: { value: Math.min(window.devicePixelRatio, 1.5) },
       },
       vertexShader: /* glsl */ `
         attribute float aPhase;

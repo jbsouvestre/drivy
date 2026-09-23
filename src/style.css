@@ -692,8 +692,11 @@ kbd.wide {
   color: var(--ink-soft);
 }
 
-.pill.clock {
+.pill.biome-pill {
   margin-left: auto;
+}
+
+.pill.clock {
   font-variant-numeric: tabular-nums;
 }
 
@@ -847,7 +850,7 @@ body.photo-mode .honk-bubble {
 .vf-subject {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: 104px;
   transform: translateX(-50%);
   white-space: pre;
 }
@@ -866,18 +869,22 @@ body.photo-mode .honk-bubble {
 
 .vf-help {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 48px;
+  left: 50%;
+  bottom: 44px;
+  transform: translateX(-50%);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 14px;
-  padding: 0 16px;
-  color: #fff;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(255, 248, 239, 0.88);
+  box-shadow: 0 4px 0 rgba(205, 180, 219, 0.8);
+  color: var(--ink);
   font-size: 0.9rem;
   font-weight: 600;
-  text-shadow: 0 1px 3px rgba(91, 78, 107, 0.6);
 }
 
 .flash {
@@ -1027,6 +1034,38 @@ body.photo-mode .honk-bubble {
 
 .journal-grid {
   display: grid;
+  gap: 22px;
+}
+
+.biome-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+  font-size: 1.2rem;
+}
+
+.biome-title small {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.biome-section.locked .biome-title {
+  padding: 16px 18px;
+  border: 2px dashed #e2d6ec;
+  border-radius: 20px;
+  color: var(--ink-soft);
+}
+
+.silhouette-emoji {
+  filter: brightness(0);
+  opacity: 0.2;
+}
+
+.journal-cards {
+  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 14px;
 }
@@ -1137,4 +1176,51 @@ body.photo-mode .honk-bubble {
 .save:focus-visible {
   outline: 3px solid var(--lilac);
   outline-offset: 2px;
+}
+
+/* ---------- biome discovery banner ---------- */
+
+.biome-banner {
+  position: fixed;
+  left: 50%;
+  top: 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 30px 16px;
+  border-radius: 28px;
+  background: var(--cream);
+  box-shadow:
+    0 8px 0 var(--lilac),
+    0 20px 40px rgba(91, 78, 107, 0.2);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -20px) scale(0.8);
+  transition:
+    opacity 0.35s ease,
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.biome-banner.show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+.biome-banner .bb-emoji {
+  font-size: 2.4rem;
+  line-height: 1.1;
+}
+
+.biome-banner strong {
+  font-size: 1.6rem;
+  color: var(--pink);
+  text-shadow: 0 3px 0 var(--pink-deep);
+}
+
+.biome-banner small {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-soft);
 }

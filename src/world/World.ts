@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { hash2, mulberry32 } from '../rng';
 import { ValueNoise2D } from './noise';
 import { propDefs, writePropMatrix, type Collider, type Prop, type PropKind } from './props';
+import { biome, BiomeMap, type BiomeId, type BiomeSample, type GroundPalette } from './biomes';
 import { buildWater, WATER_LEVEL } from './Water';
 
 export const CHUNK_SIZE = 32;
@@ -29,12 +30,6 @@ const TILE_SIZE = 4;
 const SCATTER_CELL = 4;
 /** Keep the spawn point free of props. */
 const SPAWN_CLEAR_RADIUS = 10;
-
-interface GroundPalette {
-  low: string;
-  mid: string;
-  high: string;
-}
 
 const PALETTES: GroundPalette[] = [
   { low: '#bfe8cf', mid: '#dcf2c4', high: '#ffe3c7' }, // mint meadow
@@ -91,9 +86,11 @@ export class World implements Terrain {
   private forestNoise = new ValueNoise2D(0);
   private hillNoise = new ValueNoise2D(0);
   private pondNoise = new ValueNoise2D(0);
+  private biomes = new BiomeMap(0);
   private palette = PALETTES[0];
   private readonly chunks = new Map<string, Chunk>();
   private readonly wobbles = new Map<Prop, Wobble>();
+  private readonly parsedPalettes = new Map<BiomeId, ParsedPalette>();
   private readonly groundMaterial: THREE.MeshStandardMaterial;
 
   constructor() {
@@ -112,8 +109,10 @@ export class World implements Terrain {
     this.forestNoise = new ValueNoise2D(hash2(seed, 0xf0, 0x7e57));
     this.hillNoise = new ValueNoise2D(hash2(seed, 0x4111, 0x1a));
     this.pondNoise = new ValueNoise2D(hash2(seed, 0x9014, 0xd5));
+    this.biomes = new BiomeMap(hash2(seed, 0xb10, 0xe5));
     const rand = mulberry32(hash2(seed, 0x9e37, 0x79b9));
     this.palette = PALETTES[Math.floor(rand() * PALETTES.length)];
+    this.parsedPalettes.clear();
   }
 
   /** Load chunks near `focus`, drop far-away ones, and animate bumped props. */
@@ -153,6 +152,9 @@ export class World implements Terrain {
    * of (seed, x, z), so it's seamless across chunks and identical on every visit.
    */
   heightAt(x: number, z: number): number {
+    const b = this.biomes.sample(x, z);
+    const hillScale = blend(b, (d) => d.hillHeight);
+    const pondScale = blend(b, (d) => d.pondAmount);
     const hilliness = smoothstep(0.42, 0.72, this.hillNoise.fbm(x / 50, z / 50, 3));
     const bumps = (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT;
     // Pond basins: only on the flat meadows between hills, and never at spawn.
@@ -160,7 +162,22 @@ export class World implements Terrain {
       smoothstep(0.6, 0.72, this.pondNoise.fbm(x / 40, z / 40, 2)) *
       (1 - smoothstep(0, 0.25, hilliness)) *
       smoothstep(POND_CLEAR_RADIUS, POND_CLEAR_RADIUS + 10, Math.hypot(x, z));
-    return hilliness * HILL_HEIGHT + bumps - pond * POND_DEPTH;
+    return hilliness * HILL_HEIGHT * hillScale + bumps - pond * POND_DEPTH * pondScale;
+  }
+
+  /** The two nearest biomes at a point and how dominant the nearest is (shared object: read it right away). */
+  biomeAt(x: number, z: number): BiomeSample {
+    return this.biomes.sample(x, z);
+  }
+
+  /** The biome that dominates at a point. */
+  dominantBiome(x: number, z: number): BiomeId {
+    return this.biomes.sample(x, z).a;
+  }
+
+  /** How much of biome `id` is present at a point, 0–1. */
+  biomeWeight(x: number, z: number, id: BiomeId): number {
+    return this.biomes.weight(x, z, id);
   }
 
   /**
@@ -256,10 +273,8 @@ export class World implements Terrain {
     }
     const h = (i: number, j: number) => heights[(j + 1) * side + (i + 1)];
 
-    const low = new THREE.Color(this.palette.low);
-    const mid = new THREE.Color(this.palette.mid);
-    const high = new THREE.Color(this.palette.high);
     const tmp = new THREE.Color();
+    const other = new THREE.Color();
     const white = new THREE.Color('#ffffff');
 
     const pos = geometry.attributes.position;
@@ -274,9 +289,15 @@ export class World implements Terrain {
       n3.set(h(gi - 1, gj) - h(gi + 1, gj), 2 * step, h(gi, gj - 1) - h(gi, gj + 1)).normalize();
       normal.setXYZ(i, n3.x, n3.y, n3.z);
 
-      const n = this.terrainAt(pos.getX(i) + originX, pos.getZ(i) + originZ);
-      if (n < 0.5) tmp.lerpColors(low, mid, smoothstep(0.3, 0.5, n));
-      else tmp.lerpColors(mid, high, smoothstep(0.55, 0.72, n));
+      const wx = pos.getX(i) + originX;
+      const wz = pos.getZ(i) + originZ;
+      const n = this.terrainAt(wx, wz);
+      // Ground colour from each nearby biome's palette, blended across borders.
+      const b = this.biomes.sample(wx, wz);
+      const ta = b.t;
+      const idB = b.b;
+      groundColor(this.paletteOf(b.a), n, tmp);
+      if (ta < 1) tmp.lerp(groundColor(this.paletteOf(idB), n, other), 1 - ta);
       // Sun-kissed hilltops: lighten with height so the hills read from above.
       tmp.lerp(white, 0.3 * Math.max(0, h(gi, gj) / HILL_HEIGHT));
       // Sandy shores and pond beds.
@@ -292,6 +313,16 @@ export class World implements Terrain {
     mesh.position.set(originX, 0, originZ);
     mesh.receiveShadow = true;
     return mesh;
+  }
+
+  private paletteOf(id: BiomeId): ParsedPalette {
+    const def = biome(id);
+    let parsed = this.parsedPalettes.get(id);
+    if (!parsed) {
+      parsed = parsePalette(def.palette ?? this.palette);
+      this.parsedPalettes.set(id, parsed);
+    }
+    return parsed;
   }
 
   private terrainAt(x: number, z: number): number {
@@ -317,6 +348,7 @@ export class World implements Terrain {
         const rScale = rand();
         const rRot = rand();
         const rTint = rand();
+        const rBiome = rand();
 
         const x = cx * CHUNK_SIZE + i * SCATTER_CELL + margin + rx * (SCATTER_CELL - 2 * margin);
         const z = cz * CHUNK_SIZE + j * SCATTER_CELL + margin + rz * (SCATTER_CELL - 2 * margin);
@@ -327,20 +359,46 @@ export class World implements Terrain {
 
         const forest = this.forestNoise.fbm(x / 45, z / 45);
         const rocky = this.terrainAt(x, z);
-        const treeChance = 0.03 + smoothstep(0.5, 0.72, forest) * 0.6;
-        const stoneChance = 0.02 + smoothstep(0.58, 0.75, rocky) * 0.1;
+        // Which biome's planting rules apply here (mixed along borders).
+        const b = this.biomes.sample(x, z);
+        const here: BiomeId = rBiome < b.t ? b.a : b.b;
+        const dry = ground > WATER_LEVEL + 0.35;
 
         let kind: PropKind;
         let scale: number;
-        if (rSpawn < treeChance && ground > WATER_LEVEL + 0.35) {
-          // Denser forests lean toward pines.
-          kind = rVariant < 0.3 + (forest - 0.5) * 0.8 ? 'pineTree' : 'roundTree';
-          scale = 0.8 + rScale * 0.5;
-        } else if (rSpawn < treeChance + stoneChance) {
-          kind = 'stone';
-          scale = 0.7 + rScale * rScale * 1.3;
+        if (here === 'blossom') {
+          // Airy woods of blossom trees with sunny glades full of flowers.
+          const treeChance = 0.08 + smoothstep(0.45, 0.7, forest) * 0.4;
+          const stoneChance = 0.012;
+          const flowerChance = 0.3;
+          if (rSpawn < treeChance && dry) {
+            kind = rVariant < 0.75 ? 'blossomTree' : 'roundTree';
+            scale = 0.85 + rScale * 0.45;
+          } else if (rSpawn < treeChance + stoneChance) {
+            kind = 'stone';
+            scale = 0.6 + rScale * 0.8;
+          } else if (rSpawn < treeChance + stoneChance + flowerChance && dry) {
+            kind = 'flowers';
+            scale = 0.8 + rScale * 0.6;
+          } else {
+            continue;
+          }
         } else {
-          continue;
+          const treeChance = 0.03 + smoothstep(0.5, 0.72, forest) * 0.6;
+          const stoneChance = 0.02 + smoothstep(0.58, 0.75, rocky) * 0.1;
+          if (rSpawn < treeChance && dry) {
+            // Denser forests lean toward pines.
+            kind = rVariant < 0.3 + (forest - 0.5) * 0.8 ? 'pineTree' : 'roundTree';
+            scale = 0.8 + rScale * 0.5;
+          } else if (rSpawn < treeChance + stoneChance) {
+            kind = 'stone';
+            scale = 0.7 + rScale * rScale * 1.3;
+          } else if (rSpawn < treeChance + stoneChance + 0.035 && dry) {
+            kind = 'flowers';
+            scale = 0.7 + rScale * 0.5;
+          } else {
+            continue;
+          }
         }
 
         spawns.push({ kind, x, z, rotY: rRot * Math.PI * 2, scale, tint: rTint });
@@ -386,7 +444,8 @@ export class World implements Terrain {
           color.set(part.palette[Math.floor(s.tint * part.palette.length)]);
           partMeshes[p].setColorAt(index, color);
         });
-        colliders.push({ x: s.x, z: s.z, radius: def.radius * s.scale, prop });
+        // Flowers etc. are pure decoration: nothing to bump into.
+        if (def.radius > 0) colliders.push({ x: s.x, z: s.z, radius: def.radius * s.scale, prop });
       });
 
       for (const mesh of partMeshes) {
@@ -405,6 +464,28 @@ export class World implements Terrain {
     // Prop geometries/materials are shared; only the per-chunk instance buffers go.
     for (const mesh of chunk.props) mesh.dispose();
   }
+}
+
+interface ParsedPalette {
+  low: THREE.Color;
+  mid: THREE.Color;
+  high: THREE.Color;
+}
+
+function parsePalette(p: GroundPalette): ParsedPalette {
+  return { low: new THREE.Color(p.low), mid: new THREE.Color(p.mid), high: new THREE.Color(p.high) };
+}
+
+/** Ground colour for terrain-noise value `n` within a palette. */
+function groundColor(p: ParsedPalette, n: number, out: THREE.Color): THREE.Color {
+  if (n < 0.5) return out.lerpColors(p.low, p.mid, smoothstep(0.3, 0.5, n));
+  return out.lerpColors(p.mid, p.high, smoothstep(0.55, 0.72, n));
+}
+
+/** Blend a numeric biome property across the two biomes of a sample. */
+function blend(s: BiomeSample, get: (d: ReturnType<typeof biome>) => number): number {
+  const a = get(biome(s.a));
+  return s.t === 1 ? a : a * s.t + get(biome(s.b)) * (1 - s.t);
 }
 
 function chunkKey(cx: number, cz: number): string {
