@@ -1,0 +1,308 @@
+import './style.css';
+import * as THREE from 'three';
+import { CameraRig } from './game/CameraRig';
+import { Car, type DriveInput } from './game/Car';
+import { audioContext } from './game/audio';
+import { Horn } from './game/Horn';
+import { Input } from './game/Input';
+import { SkidMarks } from './game/SkidMarks';
+import { Splashes } from './game/Splashes';
+import { hashString, randomSeedName } from './rng';
+import type { Collider } from './world/props';
+import { DayNight } from './world/DayNight';
+import { updateWater } from './world/Water';
+import { World } from './world/World';
+import { Speedometer } from './ui/Speedometer';
+import { Birds } from './wildlife/Birds';
+import { Ducks } from './wildlife/Ducks';
+import { Fireflies } from './wildlife/Fireflies';
+import { Owls } from './wildlife/Owls';
+import { Squirrels } from './wildlife/Squirrels';
+
+const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
+const HONK_WORDS = ['beep!', 'honk!', 'meep!', 'toot!'];
+/** How long the speech bubble lingers after the horn is released. */
+const BUBBLE_LINGER = 0.35;
+
+// ---------- renderer & scene ----------
+
+const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog('#fde4ec', 45, 110);
+
+const hemi = new THREE.HemisphereLight('#fff1f6', '#c8ead9', 1.6);
+scene.add(hemi);
+
+// Plays the sun by day and the moon by night (see DayNight).
+const sun = new THREE.DirectionalLight('#fff4e0', 1.9);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -30;
+sun.shadow.camera.right = 30;
+sun.shadow.camera.top = 30;
+sun.shadow.camera.bottom = -30;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 80;
+sun.shadow.bias = -0.0005;
+sun.shadow.radius = 4;
+scene.add(sun, sun.target);
+
+const dayNight = new DayNight(scene, hemi, sun);
+
+const world = new World();
+scene.add(world.group);
+
+const car = new Car(world);
+scene.add(car.root);
+
+const skids = new SkidMarks(2);
+scene.add(skids.mesh);
+
+const splashes = new Splashes(world.waterLevel);
+scene.add(splashes.mesh);
+let wasWet = false;
+
+const ducks = new Ducks(world, splashes);
+scene.add(ducks.group);
+
+const birds = new Birds();
+const squirrels = new Squirrels(world);
+const owls = new Owls(world);
+const fireflies = new Fireflies();
+scene.add(birds.group, squirrels.group, owls.group, fireflies.points);
+
+const rig = new CameraRig(window.innerWidth / window.innerHeight);
+const input = new Input();
+
+// ---------- seed & UI ----------
+
+const splash = document.querySelector<HTMLDivElement>('#splash')!;
+const hud = document.querySelector<HTMLDivElement>('#hud')!;
+const hudSeed = document.querySelector<HTMLElement>('#hud-seed')!;
+const seedInput = document.querySelector<HTMLInputElement>('#seed-input')!;
+const diceBtn = document.querySelector<HTMLButtonElement>('#seed-dice')!;
+const playBtn = document.querySelector<HTMLButtonElement>('#play')!;
+const speedo = new Speedometer(document.querySelector<HTMLElement>('#speedo')!);
+const controlsDialog = document.querySelector<HTMLDialogElement>('#controls')!;
+const showControlsBtn = document.querySelector<HTMLButtonElement>('#show-controls')!;
+const hudHelpBtn = document.querySelector<HTMLButtonElement>('#hud-help')!;
+const clockIcon = document.querySelector<HTMLElement>('#clock-icon')!;
+const clockTime = document.querySelector<HTMLElement>('#clock-time')!;
+const honkBubble = document.querySelector<HTMLDivElement>('#honk')!;
+const horn = new Horn();
+
+let playing = false;
+let currentSeed = '';
+
+function loadSeed(seedText: string): void {
+  currentSeed = seedText;
+  world.setSeed(hashString(seedText));
+  squirrels.clear();
+  owls.clear();
+  ducks.clear();
+  car.reset();
+  skids.clear();
+  world.update(car.position, 0);
+}
+
+function seedFromUrl(): string | null {
+  const s = new URLSearchParams(window.location.search).get('seed');
+  return s && s.trim() ? s.trim() : null;
+}
+
+function startGame(): void {
+  audioContext(); // unlock sound on this click so ambient night sounds can play
+  const seedText = seedInput.value.trim() || randomSeedName();
+  seedInput.value = seedText;
+  if (seedText !== currentSeed) loadSeed(seedText);
+  else {
+    car.reset();
+    skids.clear();
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set('seed', seedText);
+  window.history.replaceState(null, '', url);
+
+  hudSeed.textContent = seedText;
+  splash.classList.add('hidden');
+  hud.classList.remove('hidden');
+  rig.mode = 'follow';
+  playing = true;
+  playBtn.blur();
+}
+
+function showMenu(): void {
+  playing = false;
+  rig.mode = 'menu';
+  splash.classList.remove('hidden');
+  hud.classList.add('hidden');
+  playBtn.focus();
+}
+
+diceBtn.addEventListener('click', () => {
+  seedInput.value = randomSeedName();
+  loadSeed(seedInput.value);
+});
+seedInput.addEventListener('change', () => {
+  const s = seedInput.value.trim();
+  if (s) loadSeed(s);
+});
+seedInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startGame();
+});
+playBtn.addEventListener('click', startGame);
+
+function toggleControls(): void {
+  if (controlsDialog.open) controlsDialog.close();
+  else controlsDialog.showModal();
+}
+showControlsBtn.addEventListener('click', toggleControls);
+hudHelpBtn.addEventListener('click', () => {
+  hudHelpBtn.blur();
+  toggleControls();
+});
+controlsDialog.addEventListener('close', () => {
+  if (!playing) showControlsBtn.focus();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.code === 'KeyH' || e.key === '?') {
+    e.preventDefault();
+    toggleControls();
+  } else if (e.code === 'KeyL' && !e.repeat && playing && !controlsDialog.open) {
+    speedo.setHeadlights(car.toggleHeadlights());
+  } else if (e.key === 'Escape' && playing && !controlsDialog.open) {
+    // With the dialog open, Esc just closes it (native <dialog> behaviour).
+    showMenu();
+  }
+});
+
+seedInput.value = seedFromUrl() ?? randomSeedName();
+loadSeed(seedInput.value);
+rig.snap(car.position);
+
+// ---------- loop ----------
+
+const timer = new THREE.Timer();
+timer.connect(document);
+const nearby: Collider[] = [];
+const rearWheels: [THREE.Vector3, THREE.Vector3] = [new THREE.Vector3(), new THREE.Vector3()];
+const groundFocus = new THREE.Vector3();
+const bubbleAnchor = new THREE.Vector3();
+let bubbleTime = 0;
+
+let wasNight = dayNight.isNight;
+let shownClock = '';
+
+/** Keep the HUD clock current and switch headlights on at dusk / off at dawn. */
+function updateNightfall(): void {
+  const night = dayNight.isNight;
+  if (night !== wasNight) {
+    wasNight = night;
+    if (car.headlightsOn !== night) speedo.setHeadlights(car.toggleHeadlights());
+  }
+  const clock = dayNight.clock;
+  if (clock !== shownClock) {
+    shownClock = clock;
+    clockTime.textContent = clock;
+    clockIcon.textContent = night ? '🌙' : '☀️';
+  }
+}
+
+function popHonkBubble(): void {
+  honkBubble.textContent = HONK_WORDS[Math.floor(Math.random() * HONK_WORDS.length)];
+  // Restart the pop animation even if the bubble is already showing.
+  honkBubble.classList.remove('show');
+  void honkBubble.offsetWidth;
+  honkBubble.classList.add('show');
+}
+
+function updateHonkBubble(dt: number, honking: boolean): void {
+  if (bubbleTime <= 0) return;
+  bubbleTime = honking ? BUBBLE_LINGER : bubbleTime - dt;
+  if (bubbleTime <= 0) {
+    honkBubble.classList.remove('show');
+    return;
+  }
+  bubbleAnchor.copy(car.position).setY(car.position.y + 3.8).project(rig.camera);
+  honkBubble.style.left = `${((bubbleAnchor.x + 1) / 2) * window.innerWidth}px`;
+  honkBubble.style.top = `${((1 - bubbleAnchor.y) / 2) * window.innerHeight}px`;
+}
+
+function frame(timestamp: number): void {
+  timer.update(timestamp);
+  // The controls dialog pauses the game (but the menu backdrop keeps idling).
+  const paused = playing && controlsDialog.open;
+  const dt = paused ? 0 : Math.min(timer.getDelta(), 1 / 20);
+
+  const honking = playing && !paused && input.honk;
+  if (car.setHorn(honking)) {
+    horn.start();
+    speedo.wake();
+    birds.scare(car.position);
+    squirrels.scare(car.position);
+    owls.scare(car.position);
+    ducks.scare(car.position);
+    fireflies.scare(car.position);
+    popHonkBubble();
+    bubbleTime = BUBBLE_LINGER;
+  } else if (!honking) {
+    horn.stop();
+  }
+
+  if (!paused) {
+    car.update(dt, playing ? input : IDLE);
+    world.collidersNear(car.position.x, car.position.z, 2, nearby);
+    for (const hit of car.resolveCollisions(nearby)) {
+      world.bump(hit.collider, hit.dirX, hit.dirZ, hit.strength);
+      rig.shake(hit.strength / 40);
+      if (hit.strength > 6) speedo.bump();
+    }
+    // No tyre marks on water; splashes instead.
+    const wheels = car.rearWheelPositions(rearWheels);
+    const wet = car.wetness > 0.05;
+    skids.update(dt, wheels, wet ? 0 : car.skid);
+    const speed = car.velocity.length();
+    if (wet && !wasWet && speed > 5) splashes.burst(car.position.x, car.position.z, 26, 1.6);
+    if (wet && speed > 1.5) splashes.spray(dt, wheels, speed * 2.6 * car.wetness);
+    wasWet = wet;
+    splashes.update(dt);
+    birds.update(dt, car.position, !dayNight.isNight);
+    speedo.update(dt, car.velocity.length(), car.speed, car.handbrake, car.skid);
+  }
+
+  world.update(car.position, dt);
+  updateWater(dt);
+  if (!paused) {
+    dayNight.update(dt, playing && input.fastForward);
+    updateNightfall();
+    squirrels.update(dt, car.position, dayNight.isNight);
+    owls.update(dt, car.position, dayNight.darkness);
+    ducks.update(dt, car.position, dayNight.darkness);
+    fireflies.update(dt, car.position, dayNight.darkness, world);
+  }
+  // Follow the car along the ground so honk hops don't bob the camera.
+  groundFocus.set(car.position.x, car.ground, car.position.z);
+  rig.update(dt, groundFocus, car.velocity);
+  updateHonkBubble(dt, honking);
+
+  sun.position.copy(car.position).add(dayNight.lightOffset);
+  sun.target.position.copy(car.position);
+
+  renderer.render(scene, rig.camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  rig.resize(window.innerWidth / window.innerHeight);
+});

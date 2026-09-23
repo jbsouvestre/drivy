@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+    <title>Drivy</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="splash" class="splash">
+      <div class="splash-card">
+        <h1 class="title">Drivy</h1>
+        <p class="tagline">a tiny car in a big soft world</p>
+
+        <label class="seed-label" for="seed-input">world seed</label>
+        <div class="seed-row">
+          <input id="seed-input" class="seed-input" type="text" spellcheck="false" autocomplete="off" maxlength="40" />
+          <button id="seed-dice" class="dice" type="button" aria-label="Random seed" title="Random seed">🎲</button>
+        </div>
+
+        <button id="play" class="play" type="button">Play</button>
+
+        <button id="show-controls" class="secondary" type="button">🎮 Controls</button>
+        <p class="controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to drive · <kbd class="wide">Space</kbd> to drift</p>
+      </div>
+    </div>
+
+    <div id="hud" class="hud hidden">
+      <div class="hud-top">
+        <span class="pill">seed · <strong id="hud-seed"></strong></span>
+        <button id="hud-help" class="pill pill-btn" type="button"><kbd>H</kbd> controls</button>
+        <span class="pill subtle"><kbd>Esc</kbd> menu</span>
+        <span class="pill clock" title="Hold T to fast-forward time"><span id="clock-icon">☀️</span> <strong id="clock-time">08:00</strong></span>
+      </div>
+      <div id="speedo" class="speedo"></div>
+      <div id="honk" class="honk-bubble" aria-hidden="true"></div>
+    </div>
+
+    <dialog id="controls" class="controls-dialog" aria-labelledby="controls-title">
+      <h2 id="controls-title" class="controls-title">How to drive</h2>
+      <ul class="control-list">
+        <li>
+          <span class="keys"><kbd>W</kbd><span class="or">or</span><kbd>↑</kbd></span>
+          <span class="what">Accelerate</span>
+        </li>
+        <li>
+          <span class="keys"><kbd>S</kbd><span class="or">or</span><kbd>↓</kbd></span>
+          <span class="what">Brake <small>hold to reverse</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>A</kbd><kbd>D</kbd><span class="or">or</span><kbd>←</kbd><kbd>→</kbd></span>
+          <span class="what">Steer</span>
+        </li>
+        <li>
+          <span class="keys"><kbd class="wide">Space</kbd></span>
+          <span class="what">Handbrake <small>swing the tail out and drift</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>L</kbd></span>
+          <span class="what">Headlights <small>on / off — they switch on by themselves at dusk</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>T</kbd></span>
+          <span class="what">Fast-forward time <small>hold to speed up the day</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>E</kbd></span>
+          <span class="what">Honk! <small>hold for a longer toot</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>H</kbd></span>
+          <span class="what">Show these controls <small>pauses the game</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>Esc</kbd></span>
+          <span class="what">Back to the menu</span>
+        </li>
+      </ul>
+      <p class="controls-tip">✨ Tip: tap <strong>Space</strong> as you turn in, then steer the other way to hold the drift.</p>
+      <form method="dialog">
+        <button class="play small" type="submit">Got it!</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

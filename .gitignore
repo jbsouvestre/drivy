@@ -1,0 +1,31 @@
+# Dependencies & build output
+node_modules
+dist
+dist-ssr
+.vite
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+*.local
+
+# Playwright MCP screenshots, snapshots and console logs from testing
+.playwright-mcp
+test-results
+playwright-report
+
+# Local tool state
+.claude/settings.local.json
+.claude/.cc-writes
+
+# Editors & OS
+.idea
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
