@@ -59,9 +59,11 @@ export class Splashes {
   }
 
   update(dt: number): void {
+    let changed = false;
     for (let i = 0; i < MAX_DROPS; i++) {
       const d = this.drops[i];
       if (d.life <= 0) continue;
+      changed = true;
       d.life -= dt;
       d.vel.y -= GRAVITY * dt;
       d.pos.addScaledVector(d.vel, dt);
@@ -75,6 +77,7 @@ export class Splashes {
       this.matrix.makeScale(s, s, s).setPosition(d.pos);
       this.mesh.setMatrixAt(i, this.matrix);
     }
-    this.mesh.instanceMatrix.needsUpdate = true;
+    // Nothing flying: skip re-uploading the instance matrices.
+    if (changed) this.mesh.instanceMatrix.needsUpdate = true;
   }
 }

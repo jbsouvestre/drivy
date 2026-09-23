@@ -8,6 +8,8 @@ import { buildWater, WATER_LEVEL } from './Water';
 export const CHUNK_SIZE = 32;
 /** Chunks kept loaded around the player, in each direction. */
 const VIEW_RADIUS = 3;
+/** Far chunks built per frame while streaming (near ones are always built at once). */
+const CHUNKS_PER_FRAME = 1;
 /** Extra ring kept before unloading, so chunks don't thrash at borders. */
 const UNLOAD_RADIUS = VIEW_RADIUS + 1;
 const SEGMENTS = 24;
@@ -91,6 +93,10 @@ export class World implements Terrain {
   private readonly chunks = new Map<string, Chunk>();
   private readonly wobbles = new Map<Prop, Wobble>();
   private readonly parsedPalettes = new Map<BiomeId, ParsedPalette>();
+  /** Chunks still to build, nearest first. */
+  private readonly pending: [number, number][] = [];
+  private centerX = Number.NaN;
+  private centerZ = Number.NaN;
   private readonly groundMaterial: THREE.MeshStandardMaterial;
 
   constructor() {
@@ -120,24 +126,42 @@ export class World implements Terrain {
     const ccx = Math.floor(focus.x / CHUNK_SIZE);
     const ccz = Math.floor(focus.z / CHUNK_SIZE);
 
-    for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
-      for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
-        const cx = ccx + dx;
-        const cz = ccz + dz;
-        const key = chunkKey(cx, cz);
-        if (!this.chunks.has(key)) {
-          const chunk = this.buildChunk(cx, cz);
-          this.chunks.set(key, chunk);
-          this.group.add(chunk.group);
+    // Only rescan when the focus moves into another chunk.
+    if (ccx !== this.centerX || ccz !== this.centerZ) {
+      this.centerX = ccx;
+      this.centerZ = ccz;
+      this.pending.length = 0;
+      for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
+        for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
+          if (!this.chunks.has(chunkKey(ccx + dx, ccz + dz))) this.pending.push([ccx + dx, ccz + dz]);
+        }
+      }
+      // Nearest first, so the ground under the car always comes first.
+      this.pending.sort((a, b) => Math.hypot(a[0] - ccx, a[1] - ccz) - Math.hypot(b[0] - ccx, b[1] - ccz));
+
+      for (const [key, chunk] of this.chunks) {
+        if (Math.abs(chunk.cx - ccx) > UNLOAD_RADIUS || Math.abs(chunk.cz - ccz) > UNLOAD_RADIUS) {
+          this.disposeChunk(chunk);
+          this.chunks.delete(key);
         }
       }
     }
 
-    for (const [key, chunk] of this.chunks) {
-      if (Math.abs(chunk.cx - ccx) > UNLOAD_RADIUS || Math.abs(chunk.cz - ccz) > UNLOAD_RADIUS) {
-        this.disposeChunk(chunk);
-        this.chunks.delete(key);
-      }
+    // Build the chunks right around the focus immediately; stream the rest in
+    // one per frame (they're far off, under the fog), so crossing into a new
+    // chunk never builds a whole row in a single frame.
+    let built = 0;
+    while (this.pending.length > 0) {
+      const [cx, cz] = this.pending[0];
+      const near = Math.max(Math.abs(cx - ccx), Math.abs(cz - ccz)) <= 1;
+      if (!near && built >= CHUNKS_PER_FRAME) break;
+      this.pending.shift();
+      const key = chunkKey(cx, cz);
+      if (this.chunks.has(key)) continue;
+      const chunk = this.buildChunk(cx, cz);
+      this.chunks.set(key, chunk);
+      this.group.add(chunk.group);
+      built++;
     }
 
     this.updateWobbles(dt);
@@ -222,6 +246,8 @@ export class World implements Terrain {
     for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
     this.chunks.clear();
     this.wobbles.clear();
+    this.pending.length = 0;
+    this.centerX = this.centerZ = Number.NaN;
   }
 
   private updateWobbles(dt: number): void {
@@ -244,9 +270,13 @@ export class World implements Terrain {
 
   private buildChunk(cx: number, cz: number): Chunk {
     const group = new THREE.Group();
-    const ground = this.buildGround(cx, cz);
+    const { mesh: ground, gridHeight } = this.buildGround(cx, cz);
     group.add(ground);
-    const water = buildWater(cx, cz, CHUNK_SIZE, SEGMENTS, (x, z) => this.heightAt(x, z));
+    // The water surface uses the same vertex grid, so reuse the ground heights.
+    const step = CHUNK_SIZE / SEGMENTS;
+    const water = buildWater(cx, cz, CHUNK_SIZE, SEGMENTS, (x, z) =>
+      gridHeight(Math.round((x - cx * CHUNK_SIZE) / step), Math.round((z - cz * CHUNK_SIZE) / step)),
+    );
     if (water) group.add(water);
 
     const colliders: Collider[] = [];
@@ -254,7 +284,7 @@ export class World implements Terrain {
     return { cx, cz, group, ground, water, props, colliders };
   }
 
-  private buildGround(cx: number, cz: number): THREE.Mesh {
+  private buildGround(cx: number, cz: number): { mesh: THREE.Mesh; gridHeight: (i: number, j: number) => number } {
     const geometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, SEGMENTS, SEGMENTS);
     geometry.rotateX(-Math.PI / 2);
 
@@ -312,7 +342,7 @@ export class World implements Terrain {
     const mesh = new THREE.Mesh(geometry, this.groundMaterial);
     mesh.position.set(originX, 0, originZ);
     mesh.receiveShadow = true;
-    return mesh;
+    return { mesh, gridHeight: h };
   }
 
   private paletteOf(id: BiomeId): ParsedPalette {

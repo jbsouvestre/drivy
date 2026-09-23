@@ -35,7 +35,10 @@ function part(
   mesh.position.set(...pos);
   if (typeof scale === 'number') mesh.scale.setScalar(scale);
   else mesh.scale.set(...scale);
-  mesh.castShadow = true;
+  // Tiny details (eyes, noses, spots) cast no visible shadow: skip them to save a
+  // shadow draw call each.
+  const size = typeof scale === 'number' ? scale : Math.max(...scale);
+  mesh.castShadow = size >= 0.06;
   parent.add(mesh);
   return mesh;
 }

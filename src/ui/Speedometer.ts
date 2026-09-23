@@ -33,6 +33,10 @@ export class Speedometer {
   private idleTime = SLEEP_AFTER;
   private dizzyTime = 0;
   private mood: Mood | null = null;
+  /** Last values written to the DOM, so unchanged frames touch nothing. */
+  private shownDial = -1;
+  private shownGear = '';
+  private shownBrake = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -150,11 +154,16 @@ export class Speedometer {
     this.needleKmh += (kmh - this.needleKmh) * Math.min(1, 10 * dt);
     const frac = Math.min(1, this.needleKmh / DIAL_MAX);
 
-    this.progress.setAttribute('stroke-dasharray', `${(frac * SWEEP).toFixed(1)} 360`);
-    const [kx, ky] = arcPoint(frac, ARC_RADIUS);
-    this.knob.setAttribute('cx', kx.toFixed(2));
-    this.knob.setAttribute('cy', ky.toFixed(2));
-    this.cheeks.style.opacity = (0.25 + 0.75 * frac).toFixed(2);
+    // The dial only redraws when it visibly moves (a fraction of a degree).
+    const dial = Math.round(frac * SWEEP * 2) / 2;
+    if (dial !== this.shownDial) {
+      this.shownDial = dial;
+      this.progress.setAttribute('stroke-dasharray', `${dial.toFixed(1)} 360`);
+      const [kx, ky] = arcPoint(frac, ARC_RADIUS);
+      this.knob.setAttribute('cx', kx.toFixed(2));
+      this.knob.setAttribute('cy', ky.toFixed(2));
+      this.cheeks.style.opacity = (0.25 + 0.75 * frac).toFixed(2);
+    }
 
     const rounded = Math.round(kmh);
     if (rounded !== this.shownKmh) {
@@ -162,10 +171,16 @@ export class Speedometer {
       this.value.textContent = String(rounded);
     }
 
-    const reversing = forwardSpeed < -0.5;
-    this.gear.textContent = reversing ? 'R' : 'D';
-    this.gear.classList.toggle('reverse', reversing);
-    this.brake.classList.toggle('on', handbrake);
+    const gear = forwardSpeed < -0.5 ? 'R' : 'D';
+    if (gear !== this.shownGear) {
+      this.shownGear = gear;
+      this.gear.textContent = gear;
+      this.gear.classList.toggle('reverse', gear === 'R');
+    }
+    if (handbrake !== this.shownBrake) {
+      this.shownBrake = handbrake;
+      this.brake.classList.toggle('on', handbrake);
+    }
 
     this.idleTime = kmh < 1 ? this.idleTime + dt : 0;
     this.dizzyTime = Math.max(0, this.dizzyTime - dt);

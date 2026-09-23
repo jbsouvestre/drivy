@@ -177,9 +177,15 @@ export class SkidMarks {
     }
     this.cursor = (this.cursor + 1) % MAX_SEGMENTS;
 
+    // Upload only the quad that changed, not the whole 2000-quad buffer.
     const attrs = this.geometry.attributes;
-    attrs.position.needsUpdate = true;
-    attrs.aBirth.needsUpdate = true;
-    attrs.aAlpha.needsUpdate = true;
+    for (const [attr, size] of [
+      [attrs.position, 3],
+      [attrs.aBirth, 1],
+      [attrs.aAlpha, 1],
+    ] as const) {
+      (attr as THREE.BufferAttribute).addUpdateRange(v * size, 4 * size);
+      attr.needsUpdate = true;
+    }
   }
 }

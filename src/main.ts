@@ -325,7 +325,8 @@ function updatePhotoHint(dt: number): void {
   hintTimer -= dt;
   if (hintTimer > 0) return;
   hintTimer = HINT_INTERVAL;
-  const shot = scoreShot(photo.camera, collectSubjects(), world.group, lighting());
+  // A quick preview: skip the occlusion raycasts (the real shutter still does them).
+  const shot = scoreShot(photo.camera, collectSubjects(), null, lighting());
   const id = shot.subject?.species ?? null;
   photoHud.setHint(id, shot.stars, id ? !!journal.entry(id) : false);
 }

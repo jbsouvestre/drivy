@@ -21,7 +21,8 @@ export class CameraRig {
   private time = 0;
 
   constructor(aspect: number) {
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 400);
+    // Far plane just past the fog (~110): nothing beyond it can be seen anyway.
+    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 130);
     this.base.copy(FOLLOW_OFFSET);
     this.camera.position.copy(FOLLOW_OFFSET);
     this.camera.lookAt(0, 0, 0);

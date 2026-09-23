@@ -34,7 +34,12 @@ interface Framed {
  * size, framing, facing and how clearly it's visible; bonuses come from
  * behaviour, rarity, light and company. The best one names the photo.
  */
-export function scoreShot(camera: THREE.PerspectiveCamera, subjects: readonly Subject[], occluders: THREE.Object3D, light: Lighting): Shot {
+export function scoreShot(
+  camera: THREE.PerspectiveCamera,
+  subjects: readonly Subject[],
+  occluders: THREE.Object3D | null,
+  light: Lighting,
+): Shot {
   camera.updateMatrixWorld();
   const framed = subjects.map((s) => frame(camera, s, occluders)).filter((f): f is Framed => f !== null);
   if (framed.length === 0) return { subject: null, stars: 0, score: 0, behaviors: [] };
@@ -74,8 +79,8 @@ function derivedBehaviors(subject: Subject, framed: Framed[]): string[] {
   return out;
 }
 
-/** Base score for one subject, or null if it's outside the frame. */
-function frame(camera: THREE.PerspectiveCamera, s: Subject, occluders: THREE.Object3D): Framed | null {
+/** Base score for one subject, or null if it's outside the frame. `occluders` null skips the (costly) visibility raycasts. */
+function frame(camera: THREE.PerspectiveCamera, s: Subject, occluders: THREE.Object3D | null): Framed | null {
   _ndc.copy(s.position).project(camera);
   if (_ndc.z < -1 || _ndc.z > 1 || Math.abs(_ndc.x) > 1.02 || Math.abs(_ndc.y) > 1.02) return null;
   const dist = camera.position.distanceTo(s.position);
@@ -95,7 +100,7 @@ function frame(camera: THREE.PerspectiveCamera, s: Subject, occluders: THREE.Obj
   const dot = s.forward.dot(_toCam);
   const facing = s.omnidirectional ? 1 : 0.45 + 0.55 * ((dot + 1) / 2);
 
-  const clear = visibility(camera, s, occluders, dist);
+  const clear = occluders ? visibility(camera, s, occluders, dist) : 1;
   return { subject: s, base: size * (0.55 + 0.45 * framing) * facing * (0.25 + 0.75 * clear) };
 }
 

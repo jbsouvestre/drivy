@@ -34,7 +34,8 @@ export class PhotoMode {
   private readonly lockListeners = new Set<(locked: boolean) => void>();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    this.camera = new THREE.PerspectiveCamera(FOV_WIDE, window.innerWidth / window.innerHeight, 0.2, 400);
+    // Far plane just past the fog (~110): nothing beyond it can be seen anyway.
+    this.camera = new THREE.PerspectiveCamera(FOV_WIDE, window.innerWidth / window.innerHeight, 0.2, 130);
 
     document.addEventListener('mousemove', (e) => {
       if (!this.active || !this.locked) return;
