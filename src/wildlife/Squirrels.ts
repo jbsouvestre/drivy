@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { propPoint, type Collider, type Prop } from '../world/props';
 import type { World } from '../world/World';
+import type { Subject } from '../safari/species';
 import { ALERT_DURATION, animateAlert, createAlert } from './alert';
 import { createSquirrel, type SquirrelModel } from './models';
 
@@ -99,6 +100,25 @@ export class Squirrels {
       s.leapsLeft = 2 + Math.floor(Math.random() * 2);
       // Whip round to stare at the noise.
       s.targetHeading = Math.atan2(from.x - s.tree.x, from.z - s.tree.z);
+    }
+  }
+
+  /** Report every visible squirrel as a photo subject. */
+  collectSubjects(out: Subject[]): void {
+    for (const s of this.squirrels) {
+      if (s.mood === 'hiding' || s.appear < APPEAR_TIME) continue;
+      let behavior = 'perched';
+      if (s.mood === 'shocked' || s.mood === 'fleeing') behavior = s.jump ? 'leaping' : 'startled';
+      else if (s.jump) behavior = 'leaping';
+      else if (this.sleepy) behavior = 'sleeping';
+      else if (s.action === 'nibble') behavior = 'nibbling';
+      out.push({
+        species: 'squirrel',
+        position: s.model.root.position.clone().add(new THREE.Vector3(0, 0.55 * SCALE, 0)),
+        radius: 0.55 * SCALE,
+        forward: new THREE.Vector3(Math.sin(s.heading), 0, Math.cos(s.heading)),
+        behavior,
+      });
     }
   }
 

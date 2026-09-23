@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Subject } from '../safari/species';
 import type { Terrain } from '../world/World';
 
 const COUNT = 80;
@@ -87,6 +88,21 @@ export class Fireflies {
     // They follow the player around; bounds are never meaningful.
     this.points.frustumCulled = false;
     this.points.visible = false;
+  }
+
+  /** Report glowing fireflies as photo subjects (only once it's dark enough to see them). */
+  collectSubjects(out: Subject[]): void {
+    if (this.material.uniforms.uAmount.value < 0.4) return;
+    for (let i = 0; i < COUNT; i++) {
+      out.push({
+        species: 'firefly',
+        position: new THREE.Vector3(this.positions[i * 3], this.positions[i * 3 + 1], this.positions[i * 3 + 2]),
+        radius: 0.4,
+        forward: new THREE.Vector3(0, 0, 1),
+        behavior: 'glowing',
+        omnidirectional: true,
+      });
+    }
   }
 
   /** A honk at `from`: nearby fireflies flash bright and dart away. */

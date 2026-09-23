@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { playQuack } from '../game/audio';
 import type { Splashes } from '../game/Splashes';
 import type { Terrain } from '../world/World';
+import type { Subject } from '../safari/species';
 import { ALERT_DURATION, animateAlert, createAlert, createBubble } from './alert';
 import { createDuck, DUCK_COLORS, type DuckModel } from './models';
 
@@ -78,6 +79,7 @@ export class Ducks {
   private readonly rings: Ring[] = [];
   private ringCursor = 0;
   private spawnTimer = 0;
+  private sleepy = false;
 
   constructor(
     private readonly terrain: Terrain,
@@ -124,8 +126,32 @@ export class Ducks {
       this.manage(focus);
     }
     const sleepy = darkness > 0.7;
+    this.sleepy = sleepy;
     for (const f of this.families) this.updateFamily(f, dt, focus, sleepy);
     this.updateRings(dt);
+  }
+
+  /** Report every duck and duckling as a photo subject. */
+  collectSubjects(out: Subject[]): void {
+    for (const f of this.families) {
+      if (f.appear < 1) continue;
+      const panicking = f.scareTime < PANIC_TIME;
+      f.ducks.forEach((d, i) => {
+        const mother = i === 0;
+        let behavior = 'swimming';
+        if (panicking) behavior = 'startled';
+        else if (d.dabbleTime < 1.4) behavior = 'dabbling';
+        else if (this.sleepy) behavior = 'sleeping';
+        else if (mother && f.quackTime < 1) behavior = 'quacking';
+        out.push({
+          species: mother ? 'duck' : 'duckling',
+          position: d.model.root.position.clone().add(new THREE.Vector3(0, 0.22 * d.scale, 0)),
+          radius: 0.42 * d.scale,
+          forward: new THREE.Vector3(Math.sin(d.heading), 0, Math.cos(d.heading)),
+          behavior,
+        });
+      });
+    }
   }
 
   private isWater(x: number, z: number, depth = SWIM_DEPTH): boolean {

@@ -76,3 +76,33 @@ export function playQuack(volume: number): void {
   osc.start(start);
   osc.stop(start + 0.2);
 }
+
+let noise: AudioBuffer | null = null;
+
+/** A crisp little camera "ka-chik": two short filtered noise clicks. */
+export function playShutter(): void {
+  const ac = runningAudio() ?? audioContext();
+  if (!noise) {
+    noise = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.05), ac.sampleRate);
+    const data = noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  }
+  for (const [delay, freq, volume] of [
+    [0, 3200, 0.22],
+    [0.07, 2200, 0.16],
+  ] as const) {
+    const start = ac.currentTime + delay;
+    const src = ac.createBufferSource();
+    src.buffer = noise;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 1.5;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(volume, start);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.045);
+    src.connect(filter).connect(gain).connect(ac.destination);
+    src.start(start);
+    src.stop(start + 0.05);
+  }
+}

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ALERT_DURATION, animateAlert, createAlert } from './alert';
+import type { SpeciesId, Subject } from '../safari/species';
 import { BIRD_COLORS, createBird, type BirdModel } from './models';
 
 const MAX_FLOCKS = 2;
@@ -16,6 +17,7 @@ const EYE_SIZE = 0.04;
 
 interface Bird {
   model: BirdModel;
+  species: SpeciesId;
   /** Formation slot relative to the flock leader (flock-local, +Z forward). */
   offset: THREE.Vector3;
   phase: number;
@@ -71,6 +73,23 @@ export class Birds {
     }
   }
 
+  /** Report every bird as a photo subject. */
+  collectSubjects(out: Subject[]): void {
+    for (const flock of this.flocks) {
+      const behavior = flock.scareTime < PANIC_TIME ? 'startled' : flock.gliding ? 'gliding' : 'flying';
+      for (const bird of flock.birds) {
+        const root = bird.model.root;
+        out.push({
+          species: bird.species,
+          position: root.position.clone(),
+          radius: 0.55 * root.scale.x,
+          forward: new THREE.Vector3(Math.sin(root.rotation.y), 0, Math.cos(root.rotation.y)),
+          behavior,
+        });
+      }
+    }
+  }
+
   /** `canSpawn` false (e.g. at night) lets current flocks fly off without new ones arriving. */
   update(dt: number, focus: THREE.Vector3, canSpawn: boolean): void {
     this.spawnTimer -= dt;
@@ -113,13 +132,15 @@ export class Birds {
       // Loose V: alternate sides, each rank further back.
       const rank = Math.ceil(i / 2);
       const side = i % 2 === 0 ? 1 : -1;
-      const model = createBird(Math.random() < 0.75 ? colorsA : colorsB);
+      const colors = Math.random() < 0.75 ? colorsA : colorsB;
+      const model = createBird(colors);
       model.root.scale.setScalar(0.9 + Math.random() * 0.3);
       const alert = createAlert(1.25);
       model.root.add(alert);
       this.group.add(model.root);
       birds.push({
         model,
+        species: colors.species,
         offset: new THREE.Vector3(side * rank * 1.4, (Math.random() - 0.5) * 0.8, -rank * 1.3 + (Math.random() - 0.5) * 0.4),
         phase: Math.random() * Math.PI * 2,
         flapRate: 14 + Math.random() * 4,

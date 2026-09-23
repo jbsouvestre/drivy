@@ -2,7 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
-import { audioContext } from './game/audio';
+import { audioContext, playShutter } from './game/audio';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
 import { SkidMarks } from './game/SkidMarks';
@@ -12,6 +12,12 @@ import type { Collider } from './world/props';
 import { DayNight } from './world/DayNight';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
+import { Journal } from './safari/Journal';
+import { PhotoMode } from './safari/PhotoMode';
+import { scoreShot } from './safari/scoring';
+import type { Subject } from './safari/species';
+import { JournalView } from './ui/JournalView';
+import { PhotoHud } from './ui/PhotoHud';
 import { Speedometer } from './ui/Speedometer';
 import { Birds } from './wildlife/Birds';
 import { Ducks } from './wildlife/Ducks';
@@ -23,6 +29,13 @@ const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
 const HONK_WORDS = ['beep!', 'honk!', 'meep!', 'toot!'];
 /** How long the speech bubble lingers after the horn is released. */
 const BUBBLE_LINGER = 0.35;
+/** Car speed allowed in photo mode, as a fraction of top speed: a gentle creep. */
+const PHOTO_CREEP = 0.15;
+/** How often the viewfinder re-checks what's in frame. */
+const HINT_INTERVAL = 0.25;
+/** Captured photo size (4:3). */
+const PHOTO_WIDTH = 480;
+const PHOTO_HEIGHT = 360;
 
 // ---------- renderer & scene ----------
 
@@ -79,6 +92,8 @@ scene.add(birds.group, squirrels.group, owls.group, fireflies.points);
 
 const rig = new CameraRig(window.innerWidth / window.innerHeight);
 const input = new Input();
+const photo = new PhotoMode(canvas);
+const journal = new Journal();
 
 // ---------- seed & UI ----------
 
@@ -96,6 +111,9 @@ const clockIcon = document.querySelector<HTMLElement>('#clock-icon')!;
 const clockTime = document.querySelector<HTMLElement>('#clock-time')!;
 const honkBubble = document.querySelector<HTMLDivElement>('#honk')!;
 const horn = new Horn();
+const journalView = new JournalView(journal);
+const photoHud = new PhotoHud();
+photo.onLockChange((locked) => photoHud.setLocked(locked));
 
 let playing = false;
 let currentSeed = '';
@@ -138,7 +156,22 @@ function startGame(): void {
   playBtn.blur();
 }
 
+function setPhotoMode(on: boolean): void {
+  if (on) photo.enter();
+  else photo.exit();
+  photoHud.show(on);
+  photoHud.setLocked(photo.locked);
+  car.speedLimit = on ? PHOTO_CREEP : 1;
+}
+
+/** Dialogs need the mouse back, so leave pointer lock (photo mode itself stays on). */
+function openDialog(toggle: () => void): void {
+  photo.releasePointer();
+  toggle();
+}
+
 function showMenu(): void {
+  setPhotoMode(false);
   playing = false;
   rig.mode = 'menu';
   splash.classList.remove('hidden');
@@ -164,6 +197,12 @@ function toggleControls(): void {
   else controlsDialog.showModal();
 }
 showControlsBtn.addEventListener('click', toggleControls);
+document.querySelector('#show-journal')!.addEventListener('click', () => journalView.toggle());
+const hudJournalBtn = document.querySelector<HTMLButtonElement>('#hud-journal')!;
+hudJournalBtn.addEventListener('click', () => {
+  hudJournalBtn.blur();
+  journalView.toggle();
+});
 hudHelpBtn.addEventListener('click', () => {
   hudHelpBtn.blur();
   toggleControls();
@@ -174,14 +213,24 @@ controlsDialog.addEventListener('close', () => {
 
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
+  const dialogOpen = controlsDialog.open || journalView.open;
   if (e.code === 'KeyH' || e.key === '?') {
     e.preventDefault();
-    toggleControls();
-  } else if (e.code === 'KeyL' && !e.repeat && playing && !controlsDialog.open) {
+    if (!journalView.open) openDialog(toggleControls);
+  } else if (e.code === 'KeyJ' && !e.repeat) {
+    if (!controlsDialog.open) openDialog(() => journalView.toggle());
+  } else if (e.code === 'KeyC' && !e.repeat && playing && !dialogOpen) {
+    setPhotoMode(!photo.active);
+  } else if (e.code === 'Space' && photo.active && !dialogOpen) {
+    e.preventDefault();
+    photo.requestShot();
+  } else if (e.code === 'KeyL' && !e.repeat && playing && !dialogOpen) {
     speedo.setHeadlights(car.toggleHeadlights());
-  } else if (e.key === 'Escape' && playing && !controlsDialog.open) {
-    // With the dialog open, Esc just closes it (native <dialog> behaviour).
-    showMenu();
+  } else if (e.key === 'Escape' && playing && !dialogOpen) {
+    // With a dialog open, Esc just closes it (native <dialog> behaviour).
+    // In photo mode, Esc goes back to driving rather than to the menu.
+    if (photo.active) setPhotoMode(false);
+    else showMenu();
   }
 });
 
@@ -217,6 +266,54 @@ function updateNightfall(): void {
   }
 }
 
+const subjects: Subject[] = [];
+let hintTimer = 0;
+
+/** Every animal that could be in a photo right now. */
+function collectSubjects(): Subject[] {
+  subjects.length = 0;
+  ducks.collectSubjects(subjects);
+  squirrels.collectSubjects(subjects);
+  birds.collectSubjects(subjects);
+  owls.collectSubjects(subjects);
+  fireflies.collectSubjects(subjects);
+  return subjects;
+}
+
+function lighting() {
+  const t = dayNight.time;
+  return { goldenHour: (t > 0.25 && t < 0.33) || (t > 0.68 && t < 0.76), night: dayNight.isNight };
+}
+
+/** Grab the frame that was just rendered as a 4:3 JPEG (call right after rendering). */
+function capturePhoto(): string {
+  const src = renderer.domElement;
+  const out = document.createElement('canvas');
+  out.width = PHOTO_WIDTH;
+  out.height = PHOTO_HEIGHT;
+  const aspect = PHOTO_WIDTH / PHOTO_HEIGHT;
+  let w = src.width;
+  let h = w / aspect;
+  if (h > src.height) {
+    h = src.height;
+    w = h * aspect;
+  }
+  out.getContext('2d')!.drawImage(src, (src.width - w) / 2, (src.height - h) / 2, w, h, 0, 0, PHOTO_WIDTH, PHOTO_HEIGHT);
+  return out.toDataURL('image/jpeg', 0.85);
+}
+
+/** Live viewfinder hint: what's in frame and how many stars it would get. */
+function updatePhotoHint(dt: number): void {
+  if (!photo.ready) return;
+  photoHud.setZoom(photo.zoom);
+  hintTimer -= dt;
+  if (hintTimer > 0) return;
+  hintTimer = HINT_INTERVAL;
+  const shot = scoreShot(photo.camera, collectSubjects(), world.group, lighting());
+  const id = shot.subject?.species ?? null;
+  photoHud.setHint(id, shot.stars, id ? !!journal.entry(id) : false);
+}
+
 function popHonkBubble(): void {
   honkBubble.textContent = HONK_WORDS[Math.floor(Math.random() * HONK_WORDS.length)];
   // Restart the pop animation even if the bubble is already showing.
@@ -239,8 +336,8 @@ function updateHonkBubble(dt: number, honking: boolean): void {
 
 function frame(timestamp: number): void {
   timer.update(timestamp);
-  // The controls dialog pauses the game (but the menu backdrop keeps idling).
-  const paused = playing && controlsDialog.open;
+  // Dialogs pause the game (but the menu backdrop keeps idling).
+  const paused = playing && (controlsDialog.open || journalView.open);
   const dt = paused ? 0 : Math.min(timer.getDelta(), 1 / 20);
 
   const honking = playing && !paused && input.honk;
@@ -259,7 +356,9 @@ function frame(timestamp: number): void {
   }
 
   if (!paused) {
-    car.update(dt, playing ? input : IDLE);
+    // In photo mode Space is the shutter, not the handbrake.
+    const drive: DriveInput = !playing ? IDLE : photo.active ? { throttle: input.throttle, steer: input.steer, handbrake: false } : input;
+    car.update(dt, drive);
     world.collidersNear(car.position.x, car.position.z, 2, nearby);
     for (const hit of car.resolveCollisions(nearby)) {
       world.bump(hit.collider, hit.dirX, hit.dirZ, hit.strength);
@@ -292,12 +391,24 @@ function frame(timestamp: number): void {
   // Follow the car along the ground so honk hops don't bob the camera.
   groundFocus.set(car.position.x, car.ground, car.position.z);
   rig.update(dt, groundFocus, car.velocity);
+  photo.update(dt, car.root, rig.camera);
   updateHonkBubble(dt, honking);
+  updatePhotoHint(dt);
 
   sun.position.copy(car.position).add(dayNight.lightOffset);
   sun.target.position.copy(car.position);
 
-  renderer.render(scene, rig.camera);
+  // Score the shot from exactly this frame's camera, then capture what gets rendered.
+  const shot = photo.takeShot() ? scoreShot(photo.camera, collectSubjects(), world.group, lighting()) : null;
+  renderer.render(scene, photo.showing ? photo.camera : rig.camera);
+  if (shot) {
+    const image = capturePhoto();
+    playShutter();
+    photoHud.shutter();
+    const sp = shot.subject?.species ?? null;
+    const result = sp ? journal.record({ species: sp, stars: shot.stars, behaviors: shot.behaviors, image, seed: currentSeed }) : null;
+    photoHud.showPhoto({ image, species: sp, stars: shot.stars, behaviors: shot.behaviors, result });
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -305,4 +416,5 @@ requestAnimationFrame(frame);
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   rig.resize(window.innerWidth / window.innerHeight);
+  photo.resize(window.innerWidth / window.innerHeight);
 });

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { playHoot } from '../game/audio';
 import { propPoint, type Collider, type Prop } from '../world/props';
 import type { World } from '../world/World';
+import type { SpeciesId, Subject } from '../safari/species';
 import { ALERT_DURATION, animateAlert, createAlert, createBubble } from './alert';
 import { createOwl, OWL_COLORS, type OwlModel } from './models';
 
@@ -27,8 +28,12 @@ const HOOT_VOLUME = 0.12;
 
 type State = 'perched' | 'shocked' | 'flying';
 
+/** Chance that a new owl is the rare snowy owl. */
+const SNOWY_CHANCE = 0.12;
+
 interface Owl {
   model: OwlModel;
+  species: SpeciesId;
   alert: THREE.Sprite;
   hootBubble: THREE.Sprite;
   tree: Prop;
@@ -85,6 +90,27 @@ export class Owls {
     }
   }
 
+  /** Report every visible owl as a photo subject. */
+  collectSubjects(out: Subject[]): void {
+    for (const o of this.owls) {
+      if (o.appear < APPEAR_TIME) continue;
+      let behavior = 'perched';
+      if (o.state === 'shocked') behavior = 'startled';
+      else if (o.state === 'flying') behavior = 'flying';
+      else if (o.hootTime < HOOT_TIME) behavior = 'hooting';
+      else if (o.headTilt !== 0) behavior = 'head-tilt';
+      const root = o.model.root;
+      const face = o.heading + o.headYaw;
+      out.push({
+        species: o.species,
+        position: root.position.clone().add(new THREE.Vector3(0, 0.62 * root.scale.y, 0)),
+        radius: 0.6 * root.scale.x,
+        forward: new THREE.Vector3(Math.sin(face), 0, Math.cos(face)),
+        behavior,
+      });
+    }
+  }
+
   update(dt: number, focus: THREE.Vector3, darkness: number): void {
     this.manageTimer -= dt;
     if (this.manageTimer <= 0) {
@@ -126,7 +152,8 @@ export class Owls {
   }
 
   private spawn(tree: Prop): void {
-    const model = createOwl(OWL_COLORS[Math.floor(Math.random() * OWL_COLORS.length)]);
+    const snowy = Math.random() < SNOWY_CHANCE;
+    const model = createOwl(snowy ? OWL_COLORS.snowy : Math.random() < 0.5 ? OWL_COLORS.lavender : OWL_COLORS.cocoa);
     model.root.scale.setScalar(0);
     const alert = createAlert(1.65);
     const hootBubble = createBubble('hoo~', '#a58fd0', 1.65, 1.8);
@@ -135,6 +162,7 @@ export class Owls {
     this.occupied.add(tree);
     this.owls.push({
       model,
+      species: snowy ? 'snowy-owl' : 'owl',
       alert,
       hootBubble,
       tree,

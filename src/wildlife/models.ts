@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { SpeciesId } from '../safari/species';
 
 const materials = new Map<string, THREE.MeshStandardMaterial>();
 
@@ -44,11 +45,11 @@ export interface BirdModel {
   eyes: THREE.Mesh[];
 }
 
-export const BIRD_COLORS = [
-  { body: '#a0c4ff', wing: '#8ab0f0' }, // bluebird
-  { body: '#fdf0a0', wing: '#f2dc7a' }, // canary
-  { body: '#ffc6e0', wing: '#f5a8cb' }, // pink finch
-  { body: '#c8f0dc', wing: '#a6dcc2' }, // mint tit
+export const BIRD_COLORS: { species: SpeciesId; body: string; wing: string }[] = [
+  { species: 'bluebird', body: '#a0c4ff', wing: '#8ab0f0' },
+  { species: 'canary', body: '#fdf0a0', wing: '#f2dc7a' },
+  { species: 'pink-finch', body: '#ffc6e0', wing: '#f5a8cb' },
+  { species: 'mint-tit', body: '#c8f0dc', wing: '#a6dcc2' },
 ];
 
 /** Round little bird, facing +Z, wings pivoting at the shoulders. */
@@ -136,11 +137,11 @@ export interface OwlModel {
   wings: [THREE.Group, THREE.Group];
 }
 
-export const OWL_COLORS = [
-  { body: '#b8a9d9', belly: '#efe6fa', face: '#fbf5ea' }, // lavender
-  { body: '#c9a98f', belly: '#f5e6d6', face: '#fff6ea' }, // cocoa
-  { body: '#dcdcec', belly: '#ffffff', face: '#ffffff' }, // snowy
-];
+export const OWL_COLORS = {
+  lavender: { body: '#b8a9d9', belly: '#efe6fa', face: '#fbf5ea' },
+  cocoa: { body: '#c9a98f', belly: '#f5e6d6', face: '#fff6ea' },
+  snowy: { body: '#dcdcec', belly: '#ffffff', face: '#ffffff' },
+};
 
 let owlEyeMaterial: THREE.MeshStandardMaterial | null = null;
 

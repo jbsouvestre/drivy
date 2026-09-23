@@ -93,5 +93,7 @@ export function buildWater(
   mesh.position.set(originX, WATER_LEVEL, originZ);
   mesh.receiveShadow = true;
   mesh.renderOrder = 1;
+  // Photo scoring ignores water when checking whether something blocks the view.
+  mesh.userData.water = true;
   return mesh;
 }

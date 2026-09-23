@@ -25,7 +25,10 @@
 
         <button id="play" class="play" type="button">Play</button>
 
-        <button id="show-controls" class="secondary" type="button">🎮 Controls</button>
+        <div class="secondary-row">
+          <button id="show-controls" class="secondary" type="button">🎮 Controls</button>
+          <button id="show-journal" class="secondary" type="button">📔 Journal</button>
+        </div>
         <p class="controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to drive · <kbd class="wide">Space</kbd> to drift</p>
       </div>
     </div>
@@ -34,11 +37,34 @@
       <div class="hud-top">
         <span class="pill">seed · <strong id="hud-seed"></strong></span>
         <button id="hud-help" class="pill pill-btn" type="button"><kbd>H</kbd> controls</button>
+        <button id="hud-journal" class="pill pill-btn" type="button"><kbd>J</kbd> journal</button>
+        <span class="pill subtle photo-hint"><kbd>C</kbd> camera</span>
         <span class="pill subtle"><kbd>Esc</kbd> menu</span>
         <span class="pill clock" title="Hold T to fast-forward time"><span id="clock-icon">☀️</span> <strong id="clock-time">08:00</strong></span>
       </div>
       <div id="speedo" class="speedo"></div>
       <div id="honk" class="honk-bubble" aria-hidden="true"></div>
+
+      <div id="viewfinder" class="viewfinder hidden" aria-hidden="true">
+        <div class="vf-frame">
+          <span class="vf-corner tl"></span><span class="vf-corner tr"></span>
+          <span class="vf-corner bl"></span><span class="vf-corner br"></span>
+          <span class="vf-center"></span>
+        </div>
+        <div class="vf-top">
+          <span class="vf-rec">● PHOTO</span>
+          <span id="vf-zoom" class="vf-zoom">1.0×</span>
+        </div>
+        <div id="vf-subject" class="vf-subject hidden"></div>
+        <div id="vf-lock" class="vf-lock hidden">Click to look around</div>
+        <div class="vf-help">
+          <span><kbd>Click</kbd>/<kbd class="wide">Space</kbd> snap</span>
+          <span><kbd>Scroll</kbd> zoom</span>
+          <span><kbd>W</kbd><kbd>S</kbd> creep</span>
+          <span><kbd>C</kbd> back</span>
+        </div>
+      </div>
+      <div id="photo-toast" class="photo-toast"></div>
     </div>
 
     <dialog id="controls" class="controls-dialog" aria-labelledby="controls-title">
@@ -65,6 +91,14 @@
           <span class="what">Headlights <small>on / off — they switch on by themselves at dusk</small></span>
         </li>
         <li>
+          <span class="keys"><kbd>C</kbd></span>
+          <span class="what">Camera <small>look with the mouse, scroll to zoom, click or Space to snap</small></span>
+        </li>
+        <li>
+          <span class="keys"><kbd>J</kbd></span>
+          <span class="what">Field journal <small>every animal you've photographed</small></span>
+        </li>
+        <li>
           <span class="keys"><kbd>T</kbd></span>
           <span class="what">Fast-forward time <small>hold to speed up the day</small></span>
         </li>
@@ -86,6 +120,19 @@
         <button class="play small" type="submit">Got it!</button>
       </form>
     </dialog>
+
+    <dialog id="journal" class="journal-dialog" aria-labelledby="journal-title">
+      <header class="journal-head">
+        <div>
+          <h2 id="journal-title" class="controls-title">Field Journal</h2>
+          <p class="journal-sub">🌾 Meadow · <span class="journal-progress"></span></p>
+        </div>
+        <form method="dialog"><button class="close-btn" type="submit" aria-label="Close journal">✕</button></form>
+      </header>
+      <div class="journal-grid"></div>
+    </dialog>
+
+    <div id="flash" class="flash" aria-hidden="true"></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

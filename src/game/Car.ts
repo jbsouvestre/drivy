@@ -116,6 +116,8 @@ export class Car {
   private tiltRoll = 0;
   /** How submerged the car is: 0 on land → 1 floating. */
   private wet = 0;
+  /** Fraction of top speed allowed (photo mode lowers it to a creep). Speeds above it brake smoothly. */
+  speedLimit = 1;
   private braking = false;
   private headlights!: Headlights;
   private readonly tailMaterials: THREE.MeshStandardMaterial[] = [];
@@ -185,6 +187,9 @@ export class Car {
     vf += Math.sign(vf) * Math.abs(cancelled) * (this.handbrake ? HANDBRAKE_REDIRECT : REDIRECT);
     const waterCap = 1 - WATER_SPEED_LOSS * this.wet;
     vf = THREE.MathUtils.clamp(vf, -MAX_REVERSE * waterCap, MAX_SPEED * waterCap);
+    // Speed limit: ease down rather than stopping dead.
+    const limit = MAX_SPEED * this.speedLimit;
+    if (Math.abs(vf) > limit) vf -= Math.sign(vf) * Math.min(Math.abs(vf) - limit, BRAKE * dt);
 
     // Steering eases toward the target and gets gentler at high speed.
     const speedFactor = 1 - 0.45 * Math.min(1, Math.abs(vf) / MAX_SPEED);
