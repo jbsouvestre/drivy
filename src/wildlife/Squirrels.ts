@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { propPoint, type Collider, type Prop } from '../world/props';
 import type { World } from '../world/World';
 import type { Subject } from '../safari/species';
-import { ALERT_DURATION, animateAlert, createAlert } from './alert';
+import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
+import { updateAlert, WARY, type CarPresence } from './awareness';
 import { createSquirrel, type SquirrelModel } from './models';
 
 const MAX_SQUIRRELS = 6;
@@ -26,6 +27,11 @@ const HIDE_TIME = 0.35;
 /** No new squirrels appear near a honk for a while. */
 const SCARE_MEMORY = 8;
 const SCARE_KEEP_OUT = 18;
+/** Notice radius at full car speed (creeping shrinks it; see awareness). */
+const NOTICE = 14;
+/** The chime reaches squirrels within this distance; they stay curious this long. */
+const CHIME_RADIUS = 20;
+const CURIOUS_TIME = 3.5;
 
 type Action = 'idle' | 'nibble' | 'flick';
 type Mood = 'calm' | 'shocked' | 'fleeing' | 'hiding';
@@ -33,6 +39,15 @@ type Mood = 'calm' | 'shocked' | 'fleeing' | 'hiding';
 interface Squirrel {
   model: SquirrelModel;
   alert: THREE.Sprite;
+  wary: THREE.Sprite;
+  note: THREE.Sprite;
+  /** 0–1: how bothered it is by the car. Fills when the car moves nearby. */
+  alertness: number;
+  /** Seconds spent wary so far, or -1 when not wary. */
+  waryTime: number;
+  /** Seconds of curiosity left after a chime. */
+  curiousTime: number;
+  noteTime: number;
   tree: Prop;
   heading: number;
   targetHeading: number;
@@ -91,15 +106,59 @@ export class Squirrels {
     for (const s of this.squirrels) {
       if (s.mood === 'hiding' || s.appear < APPEAR_TIME) continue;
       if (Math.hypot(s.tree.x - from.x, s.tree.z - from.z) > SCARE_RADIUS) continue;
-      s.scareFrom.copy(from);
-      s.alertTime = 0;
-      if (s.mood === 'fleeing') continue; // already running: just another "!"
-      s.mood = 'shocked';
-      s.moodTime = 0;
+      this.startle(s, from);
+    }
+  }
+
+  /** A chime at `from`: calm squirrels nearby turn to look, curious. */
+  chime(from: THREE.Vector3): void {
+    for (const s of this.squirrels) {
+      if (s.mood !== 'calm' || s.appear < APPEAR_TIME) continue;
+      if (Math.hypot(s.tree.x - from.x, s.tree.z - from.z) > CHIME_RADIUS) continue;
+      s.curiousTime = CURIOUS_TIME;
+      s.noteTime = 0;
+      s.alertness *= 0.3;
       s.action = 'idle';
-      s.leapsLeft = 2 + Math.floor(Math.random() * 2);
-      // Whip round to stare at the noise.
       s.targetHeading = Math.atan2(from.x - s.tree.x, from.z - s.tree.z);
+    }
+  }
+
+  /** "!" moment, then a leaping escape away from `from`. */
+  private startle(s: Squirrel, from: THREE.Vector3): void {
+    s.scareFrom.copy(from);
+    s.alertTime = 0;
+    s.alertness = 0;
+    s.curiousTime = 0;
+    if (s.mood === 'fleeing') return; // already running: just another "!"
+    s.mood = 'shocked';
+    s.moodTime = 0;
+    s.action = 'idle';
+    s.leapsLeft = 2 + Math.floor(Math.random() * 2);
+    // Whip round to stare at the noise.
+    s.targetHeading = Math.atan2(from.x - s.tree.x, from.z - s.tree.z);
+  }
+
+  /** Notice the car: wary when it gets close while moving, bolt if it keeps coming. */
+  private sense(s: Squirrel, dt: number, car: CarPresence): void {
+    if (s.mood !== 'calm' || s.jump || s.appear < APPEAR_TIME) {
+      s.waryTime = -1;
+      return;
+    }
+    const dist = Math.hypot(s.tree.x - car.position.x, s.tree.z - car.position.z);
+    s.alertness = updateAlert(s.alertness, dt, dist, NOTICE, car);
+    if (s.alertness >= 1) {
+      this.startle(s, car.position);
+      s.waryTime = -1;
+      return;
+    }
+    if (s.alertness > WARY) {
+      s.waryTime = s.waryTime < 0 ? 0 : s.waryTime + dt;
+      // Freeze and stare; no leaping off while on guard.
+      s.targetHeading = Math.atan2(car.position.x - s.tree.x, car.position.z - s.tree.z);
+      s.action = 'idle';
+      s.timer = Math.max(s.timer, 0.5);
+    } else {
+      s.waryTime = -1;
     }
   }
 
@@ -110,6 +169,7 @@ export class Squirrels {
       let behavior = 'perched';
       if (s.mood === 'shocked' || s.mood === 'fleeing') behavior = s.jump ? 'leaping' : 'startled';
       else if (s.jump) behavior = 'leaping';
+      else if (s.curiousTime > 0) behavior = 'curious';
       else if (this.sleepy) behavior = 'sleeping';
       else if (s.action === 'nibble') behavior = 'nibbling';
       out.push({
@@ -122,7 +182,7 @@ export class Squirrels {
     }
   }
 
-  update(dt: number, focus: THREE.Vector3, sleepy: boolean): void {
+  update(dt: number, focus: THREE.Vector3, sleepy: boolean, car: CarPresence): void {
     this.sleepy = sleepy;
     this.scareMemory = Math.max(0, this.scareMemory - dt);
     this.manageTimer -= dt;
@@ -132,6 +192,7 @@ export class Squirrels {
     }
     for (let i = this.squirrels.length - 1; i >= 0; i--) {
       const s = this.squirrels[i];
+      this.sense(s, dt, car);
       this.animate(s, dt);
       if (s.mood === 'hiding' && s.moodTime >= HIDE_TIME) this.remove(i);
     }
@@ -178,13 +239,21 @@ export class Squirrels {
     const model = createSquirrel();
     model.root.scale.setScalar(0);
     const alert = createAlert(1.45);
-    model.root.add(alert);
+    const wary = createWary(1.45);
+    const note = createNote(1.45);
+    model.root.add(alert, wary, note);
     this.group.add(model.root);
     this.occupied.add(tree);
     const heading = Math.random() * Math.PI * 2;
     this.squirrels.push({
       model,
       alert,
+      wary,
+      note,
+      alertness: 0,
+      waryTime: -1,
+      curiousTime: 0,
+      noteTime: ALERT_DURATION + 1,
       tree,
       heading,
       targetHeading: heading,
@@ -313,6 +382,8 @@ export class Squirrels {
         }
       } else if (s.mood === 'calm') {
         s.timer -= dt;
+        // Curious squirrels just watch; no wandering off mid-portrait.
+        if (s.curiousTime > 0) s.timer = Math.max(s.timer, 0.5);
         if (s.timer <= 0) this.decide(s);
       }
     }
@@ -349,5 +420,18 @@ export class Squirrels {
       if (s.actionTime > 0.7) s.action = 'idle';
     }
     head.rotation.y = dozing || s.mood !== 'calm' ? 0 : Math.sin(s.time * 0.9) * 0.25;
+
+    // Curious: sit up, perk up, tilt the head at the chime.
+    s.curiousTime = Math.max(0, s.curiousTime - dt);
+    if (s.curiousTime > 0 && s.mood === 'calm') {
+      head.rotation.set(-0.15, 0, Math.sin(s.time * 2) * 0.12 + 0.28);
+      tail.rotation.z = Math.sin(s.time * 5) * 0.1;
+    }
+    // Wary: ears-up freeze (no idle head sway).
+    if (s.waryTime >= 0) head.rotation.set(-0.1, 0, 0);
+
+    s.noteTime += dt;
+    animateAlert(s.note, s.noteTime, 0.5, 1.2);
+    animateHold(s.wary, s.alertTime < ALERT_DURATION ? -1 : s.waryTime, 0.5);
   }
 }

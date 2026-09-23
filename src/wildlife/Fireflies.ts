@@ -10,6 +10,8 @@ const MAX_HEIGHT = 3.2;
 const MAX_SPEED = 1.1;
 /** A honk within this distance makes fireflies flash and dart away. */
 const SCARE_RADIUS = 12;
+/** A chime draws in fireflies from this far away. */
+const ATTRACT_RADIUS = 16;
 
 const COLORS = ['#eaff9e', '#eaff9e', '#fff3a3', '#c8ffe0', '#ffd1ea'];
 
@@ -102,6 +104,24 @@ export class Fireflies {
         behavior: 'glowing',
         omnidirectional: true,
       });
+    }
+  }
+
+  /** A chime at `from`: nearby fireflies brighten and drift in to hover around it. */
+  attract(from: THREE.Vector3): void {
+    if (!this.points.visible) return;
+    for (let i = 0; i < COUNT; i++) {
+      const k = i * 3;
+      const dx = from.x - this.positions[k];
+      const dy = from.y + 2 - this.positions[k + 1];
+      const dz = from.z - this.positions[k + 2];
+      const d = Math.hypot(dx, dz);
+      if (d > ATTRACT_RADIUS || d < 1.5) continue;
+      const pull = 2.2 / Math.hypot(dx, dy, dz);
+      this.velocities[k] += dx * pull;
+      this.velocities[k + 1] += dy * pull;
+      this.velocities[k + 2] += dz * pull;
+      this.flashes[i] = Math.max(this.flashes[i], 0.5);
     }
   }
 

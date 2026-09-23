@@ -74,3 +74,25 @@ export function animateAlert(sprite: THREE.Sprite, time: number, size: number, d
   s = size * Math.max(0, s);
   sprite.scale.set(s * (sprite.userData.aspect as number), s, 1);
 }
+
+/** Lilac "?" shown while an animal is wary of the car. */
+export function createWary(y: number): THREE.Sprite {
+  return createBubble('?', '#a58fd0', y);
+}
+
+/** Mint "♪" shown when an animal hears the chime. */
+export function createNote(y: number): THREE.Sprite {
+  return createBubble('♪', '#7cc9a4', y);
+}
+
+/** Show a bubble for as long as a state lasts: pop in, then a gentle wobble. `time` < 0 hides it. */
+export function animateHold(sprite: THREE.Sprite, time: number, size: number): void {
+  if (time < 0) {
+    sprite.visible = false;
+    return;
+  }
+  sprite.visible = true;
+  const t = Math.min(1, time / POP) - 1;
+  const s = size * ((1 + 2.7 * t * t * t + 1.7 * t * t) + Math.sin(time * 6) * 0.05);
+  sprite.scale.set(s * (sprite.userData.aspect as number), s, 1);
+}

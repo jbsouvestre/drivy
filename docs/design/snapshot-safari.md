@@ -118,11 +118,13 @@ Extra animals in frame add a small "group shot" bonus.
 
 ## Phased plan
 
-1. **Photo mode and journal (Meadow only).** First-person camera, shutter,
+1. ✅ **Photo mode and journal (Meadow only).** First-person camera, shutter,
    scoring, polaroid toast, journal for the existing species (duck, squirrel,
    bird, owl, fireflies), local save. *This alone makes it a game.*
-2. **Approach mechanic.** Shyness and noticing radius, fleeing when the car is too
-   fast or close, sneaking up slowly. The chime sound.
+2. ✅ **Approach mechanic.** Shyness and noticing radius, fleeing when the car is too
+   fast or close, sneaking up slowly. The chime sound (`Q`).
+   Implemented as an alertness meter per animal ("?" when wary; a stopped car calms them),
+   with shyness scaled by `difficultyAt()` (distance from spawn).
 3. **Biome system.** Biome field + difficulty from distance, blending, per-biome
    palette, props and terrain. First new biome: **Blossom Woods** with 3 species.
 4. **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.

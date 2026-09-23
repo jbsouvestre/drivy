@@ -18,6 +18,9 @@ const BUMP_HEIGHT = 0.35;
 const POND_DEPTH = 1.7;
 /** No ponds this close to the spawn point. */
 const POND_CLEAR_RADIUS = 18;
+/** Difficulty ramps from 0 to 1 between these distances from spawn. */
+const DIFFICULTY_START = 60;
+const DIFFICULTY_FULL = 700;
 /** Sandy beach ring colour around ponds. */
 const SAND = new THREE.Color('#f5e6c8');
 /** Size of one checker tile in world units. */
@@ -158,6 +161,14 @@ export class World implements Terrain {
       (1 - smoothstep(0, 0.25, hilliness)) *
       smoothstep(POND_CLEAR_RADIUS, POND_CLEAR_RADIUS + 10, Math.hypot(x, z));
     return hilliness * HILL_HEIGHT + bumps - pond * POND_DEPTH;
+  }
+
+  /**
+   * How challenging this spot is: 0 around spawn, easing up to 1 far away.
+   * Animals out there are shyer; later, biomes and rarity will read it too.
+   */
+  difficultyAt(x: number, z: number): number {
+    return smoothstep(DIFFICULTY_START, DIFFICULTY_FULL, Math.hypot(x, z));
   }
 
   /** Collect colliders that could touch a circle of `range` around (x, z). */

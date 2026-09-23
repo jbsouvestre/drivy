@@ -52,7 +52,7 @@ export interface Subject {
 const b = (id: string, label: string): Behavior => ({ id, label });
 
 const BIRD_BEHAVIORS = [b('flying', 'Flying'), b('gliding', 'Gliding'), b('startled', 'Startled')];
-const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('flying', 'Flying'), b('startled', 'Startled')];
+const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
   {
@@ -62,7 +62,7 @@ export const SPECIES: Species[] = [
     emoji: '🦆',
     hint: 'Paddles around ponds with a trail of little ones.',
     rare: false,
-    behaviors: [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+    behaviors: [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
   },
   {
     id: 'duckling',
@@ -71,7 +71,7 @@ export const SPECIES: Species[] = [
     emoji: '🐥',
     hint: 'Never far behind its mother.',
     rare: false,
-    behaviors: [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+    behaviors: [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
   },
   {
     id: 'squirrel',
@@ -80,7 +80,7 @@ export const SPECIES: Species[] = [
     emoji: '🐿️',
     hint: 'Sits on top of round trees.',
     rare: false,
-    behaviors: [b('perched', 'Perched'), b('nibbling', 'Nibbling'), b('leaping', 'Leaping'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+    behaviors: [b('perched', 'Perched'), b('nibbling', 'Nibbling'), b('leaping', 'Leaping'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
   },
   { id: 'bluebird', name: 'Bluebird', biome: 'meadow', emoji: '🐦', hint: 'Crosses the sky in small flocks.', rare: false, behaviors: BIRD_BEHAVIORS },
   { id: 'canary', name: 'Canary', biome: 'meadow', emoji: '🐤', hint: 'A sunny little flyer.', rare: false, behaviors: BIRD_BEHAVIORS },

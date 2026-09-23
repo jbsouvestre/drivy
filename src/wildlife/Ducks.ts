@@ -3,7 +3,8 @@ import { playQuack } from '../game/audio';
 import type { Splashes } from '../game/Splashes';
 import type { Terrain } from '../world/World';
 import type { Subject } from '../safari/species';
-import { ALERT_DURATION, animateAlert, createAlert, createBubble } from './alert';
+import { ALERT_DURATION, animateAlert, animateHold, createAlert, createBubble, createNote, createWary } from './alert';
+import { updateAlert, WARY, type CarPresence } from './awareness';
 import { createDuck, DUCK_COLORS, type DuckModel } from './models';
 
 const MAX_FAMILIES = 2;
@@ -29,6 +30,11 @@ const PERSONAL_SPACE = 5;
 const QUACK_RANGE = 35;
 const QUACK_VOLUME = 0.09;
 const EYE_SIZE = 0.025;
+/** Notice radius at full car speed (creeping shrinks it; see awareness). */
+const NOTICE = 16;
+/** The chime reaches families within this distance; they come to have a look for this long. */
+const CHIME_RADIUS = 22;
+const CURIOUS_TIME = 6;
 
 const MAX_RINGS = 40;
 const RING_LIFE = 1.4;
@@ -58,6 +64,14 @@ interface Family {
   quackTime: number;
   quackBubble: THREE.Sprite;
   appear: number;
+  /** 0–1: how bothered the family is by the car (judged by the mother). */
+  alertness: number;
+  /** Seconds spent wary so far, or -1 when not wary. */
+  waryTime: number;
+  curiousTime: number;
+  noteTime: number;
+  wary: THREE.Sprite;
+  note: THREE.Sprite;
 }
 
 interface Ring {
@@ -105,21 +119,40 @@ export class Ducks {
     for (const f of this.families) {
       const mother = f.ducks[0];
       if (Math.hypot(mother.pos.x - from.x, mother.pos.z - from.z) > SCARE_RADIUS) continue;
-      f.scareTime = 0;
-      f.fleeHeading = Math.atan2(mother.pos.x - from.x, mother.pos.z - from.z);
-      f.quackTime = 0;
-      this.quack(f, from);
-      for (const d of f.ducks) {
-        d.alertTime = -Math.random() * 0.15;
-        d.hopTime = 0;
-        d.dabbleTime = Infinity;
-        d.scatter = (Math.random() - 0.5) * 2.5;
-        this.splashes.burst(d.pos.x, d.pos.z, 6, 0.8 * d.scale);
-      }
+      this.startle(f, from);
     }
   }
 
-  update(dt: number, focus: THREE.Vector3, darkness: number): void {
+  /** A chime at `from`: families nearby paddle over for a curious look. */
+  chime(from: THREE.Vector3): void {
+    for (const f of this.families) {
+      const m = f.ducks[0].pos;
+      if (f.scareTime < PANIC_TIME || Math.hypot(m.x - from.x, m.z - from.z) > CHIME_RADIUS) continue;
+      f.curiousTime = CURIOUS_TIME;
+      f.noteTime = 0;
+      f.alertness *= 0.3;
+    }
+  }
+
+  /** Flappy "!" hop, a panicked quack, then paddle hard away from `from`. */
+  private startle(f: Family, from: THREE.Vector3): void {
+    const mother = f.ducks[0];
+    f.alertness = 0;
+    f.curiousTime = 0;
+    f.scareTime = 0;
+    f.fleeHeading = Math.atan2(mother.pos.x - from.x, mother.pos.z - from.z);
+    f.quackTime = 0;
+    this.quack(f, from);
+    for (const d of f.ducks) {
+      d.alertTime = -Math.random() * 0.15;
+      d.hopTime = 0;
+      d.dabbleTime = Infinity;
+      d.scatter = (Math.random() - 0.5) * 2.5;
+      this.splashes.burst(d.pos.x, d.pos.z, 6, 0.8 * d.scale);
+    }
+  }
+
+  update(dt: number, focus: THREE.Vector3, darkness: number, car: CarPresence): void {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnTimer = 1;
@@ -127,7 +160,7 @@ export class Ducks {
     }
     const sleepy = darkness > 0.7;
     this.sleepy = sleepy;
-    for (const f of this.families) this.updateFamily(f, dt, focus, sleepy);
+    for (const f of this.families) this.updateFamily(f, dt, focus, sleepy, car);
     this.updateRings(dt);
   }
 
@@ -140,6 +173,7 @@ export class Ducks {
         const mother = i === 0;
         let behavior = 'swimming';
         if (panicking) behavior = 'startled';
+        else if (f.curiousTime > 0) behavior = 'curious';
         else if (d.dabbleTime < 1.4) behavior = 'dabbling';
         else if (this.sleepy) behavior = 'sleeping';
         else if (mother && f.quackTime < 1) behavior = 'quacking';
@@ -195,7 +229,9 @@ export class Ducks {
       ducks.push(this.makeDuck(DUCK_COLORS.duckling, DUCKLING_SCALE, bx, bz, heading));
     }
     const quackBubble = createBubble('quack!', '#ffb870', 1.15, 2.4);
-    mother.model.root.add(quackBubble);
+    const wary = createWary(1.15);
+    const note = createNote(1.15);
+    mother.model.root.add(quackBubble, wary, note);
     this.families.push({
       ducks,
       target: new THREE.Vector3(x, 0, z),
@@ -206,6 +242,12 @@ export class Ducks {
       quackTime: Infinity,
       quackBubble,
       appear: 0,
+      alertness: 0,
+      waryTime: -1,
+      curiousTime: 0,
+      noteTime: ALERT_DURATION + 1,
+      wary,
+      note,
     });
   }
 
@@ -246,11 +288,22 @@ export class Ducks {
     f.retarget = 5 + Math.random() * 6;
   }
 
-  private updateFamily(f: Family, dt: number, focus: THREE.Vector3, sleepy: boolean): void {
+  private updateFamily(f: Family, dt: number, focus: THREE.Vector3, sleepy: boolean, car: CarPresence): void {
     f.appear = Math.min(1, f.appear + dt / 0.5);
     f.scareTime += dt;
-    const panicking = f.scareTime < PANIC_TIME;
     const mother = f.ducks[0];
+    const carDist = Math.hypot(mother.pos.x - focus.x, mother.pos.z - focus.z);
+
+    // Notice the car: wary when it moves close, paddle off in a fluster if it keeps coming.
+    if (f.scareTime >= PANIC_TIME && f.appear >= 1) {
+      f.alertness = updateAlert(f.alertness, dt, carDist, NOTICE, car);
+      if (f.alertness >= 1) this.startle(f, car.position);
+    }
+    const panicking = f.scareTime < PANIC_TIME;
+    const wary = !panicking && f.alertness > WARY;
+    f.waryTime = wary ? (f.waryTime < 0 ? 0 : f.waryTime + dt) : -1;
+    f.curiousTime = Math.max(0, f.curiousTime - dt);
+    const curious = !panicking && f.curiousTime > 0;
 
     // --- Mother: wander to targets, dodge the car, flee from honks. ---
     f.retarget -= dt;
@@ -258,10 +311,18 @@ export class Ducks {
 
     let desired = Math.atan2(f.target.x - mother.pos.x, f.target.z - mother.pos.z);
     let speed = sleepy ? SWIM_SPEED * 0.25 : SWIM_SPEED;
-    const carDist = Math.hypot(mother.pos.x - focus.x, mother.pos.z - focus.z);
+    const towardCar = Math.atan2(focus.x - mother.pos.x, focus.z - mother.pos.z);
     if (panicking) {
       desired = f.fleeHeading;
       speed = FLEE_SPEED * (1 - (f.scareTime / PANIC_TIME) * 0.5);
+    } else if (curious) {
+      // Paddle over for a look, stopping at a polite distance.
+      desired = towardCar;
+      speed = carDist > PERSONAL_SPACE + 1.5 ? SWIM_SPEED * 1.2 : 0;
+    } else if (wary) {
+      // Stop and keep an eye on the car.
+      desired = towardCar;
+      speed = 0;
     } else if (carDist < PERSONAL_SPACE) {
       desired = Math.atan2(mother.pos.x - focus.x, mother.pos.z - focus.z);
       speed = SWIM_SPEED * 2;
@@ -289,6 +350,9 @@ export class Ducks {
       this.quack(f, focus);
     }
     animateAlert(f.quackBubble, f.quackTime, 0.45, 1);
+    f.noteTime += dt;
+    animateAlert(f.note, f.noteTime, 0.4, 1.2);
+    animateHold(f.wary, f.waryTime, 0.4);
 
     for (const d of f.ducks) this.animateDuck(f, d, dt, sleepy, panicking);
   }

@@ -106,3 +106,30 @@ export function playShutter(): void {
     src.stop(start + 0.05);
   }
 }
+
+/** A soft two-note bell: the "come and look" chime that curious animals like. */
+export function playChime(): void {
+  const ac = audioContext();
+  const notes = [
+    { at: 0, freq: 1318.5 },
+    { at: 0.13, freq: 1760 },
+  ];
+  for (const n of notes) {
+    const start = ac.currentTime + n.at;
+    for (const [mult, vol] of [
+      [1, 0.1],
+      [2.01, 0.025], // a faint overtone gives it a glassy ring
+    ] as const) {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = n.freq * mult;
+      const gain = ac.createGain();
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(vol, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.3);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(start);
+      osc.stop(start + 1.35);
+    }
+  }
+}

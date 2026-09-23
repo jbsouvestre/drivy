@@ -3,7 +3,8 @@ import { playHoot } from '../game/audio';
 import { propPoint, type Collider, type Prop } from '../world/props';
 import type { World } from '../world/World';
 import type { SpeciesId, Subject } from '../safari/species';
-import { ALERT_DURATION, animateAlert, createAlert, createBubble } from './alert';
+import { ALERT_DURATION, animateAlert, animateHold, createAlert, createBubble, createNote, createWary } from './alert';
+import { updateAlert, WARY, type CarPresence } from './awareness';
 import { createOwl, OWL_COLORS, type OwlModel } from './models';
 
 const MAX_OWLS = 3;
@@ -28,12 +29,25 @@ const HOOT_VOLUME = 0.12;
 
 type State = 'perched' | 'shocked' | 'flying';
 
+/** Owls are shy: they notice a moving car from further away than most. */
+const NOTICE = 18;
+const CHIME_RADIUS = 24;
+const CURIOUS_TIME = 4;
+
 /** Chance that a new owl is the rare snowy owl. */
 const SNOWY_CHANCE = 0.12;
 
 interface Owl {
   model: OwlModel;
   species: SpeciesId;
+  wary: THREE.Sprite;
+  note: THREE.Sprite;
+  /** 0–1: how bothered it is by the car. */
+  alertness: number;
+  /** Seconds spent wary so far, or -1 when not wary. */
+  waryTime: number;
+  curiousTime: number;
+  noteTime: number;
   alert: THREE.Sprite;
   hootBubble: THREE.Sprite;
   tree: Prop;
@@ -79,15 +93,33 @@ export class Owls {
     for (const o of this.owls) {
       if (o.state !== 'perched' || o.appear < APPEAR_TIME) continue;
       if (Math.hypot(o.tree.x - from.x, o.tree.z - from.z) > SCARE_RADIUS) continue;
-      o.state = 'shocked';
-      o.stateTime = 0;
-      o.alertTime = 0;
-      o.hootTime = HOOT_TIME; // cut any hoot short
-      // Stare straight at the noise, then flee directly away from it.
-      o.heading = Math.atan2(from.x - o.tree.x, from.z - o.tree.z);
-      o.headTarget = 0;
-      o.flyDir.set(o.tree.x - from.x, 0, o.tree.z - from.z).normalize();
+      this.startle(o, from);
     }
+  }
+
+  /** A chime at `from`: perched owls nearby swivel round and tilt their heads, curious. */
+  chime(from: THREE.Vector3): void {
+    for (const o of this.owls) {
+      if (o.state !== 'perched' || o.appear < APPEAR_TIME) continue;
+      if (Math.hypot(o.tree.x - from.x, o.tree.z - from.z) > CHIME_RADIUS) continue;
+      o.curiousTime = CURIOUS_TIME;
+      o.noteTime = 0;
+      o.alertness *= 0.3;
+    }
+  }
+
+  /** "!" moment, then flap off away from `from`. */
+  private startle(o: Owl, from: THREE.Vector3): void {
+    o.alertness = 0;
+    o.curiousTime = 0;
+    o.state = 'shocked';
+    o.stateTime = 0;
+    o.alertTime = 0;
+    o.hootTime = HOOT_TIME; // cut any hoot short
+    // Stare straight at the noise, then flee directly away from it.
+    o.heading = Math.atan2(from.x - o.tree.x, from.z - o.tree.z);
+    o.headTarget = 0;
+    o.flyDir.set(o.tree.x - from.x, 0, o.tree.z - from.z).normalize();
   }
 
   /** Report every visible owl as a photo subject. */
@@ -97,6 +129,7 @@ export class Owls {
       let behavior = 'perched';
       if (o.state === 'shocked') behavior = 'startled';
       else if (o.state === 'flying') behavior = 'flying';
+      else if (o.curiousTime > 0) behavior = 'curious';
       else if (o.hootTime < HOOT_TIME) behavior = 'hooting';
       else if (o.headTilt !== 0) behavior = 'head-tilt';
       const root = o.model.root;
@@ -111,7 +144,7 @@ export class Owls {
     }
   }
 
-  update(dt: number, focus: THREE.Vector3, darkness: number): void {
+  update(dt: number, focus: THREE.Vector3, darkness: number, car: CarPresence): void {
     this.manageTimer -= dt;
     if (this.manageTimer <= 0) {
       this.manageTimer = 0.5;
@@ -119,6 +152,7 @@ export class Owls {
     }
     for (let i = this.owls.length - 1; i >= 0; i--) {
       const o = this.owls[i];
+      this.sense(o, dt, car);
       this.animate(o, dt, focus, darkness);
       if (o.state === 'flying' && o.stateTime > FLY_TIME) this.remove(i);
     }
@@ -156,8 +190,10 @@ export class Owls {
     const model = createOwl(snowy ? OWL_COLORS.snowy : Math.random() < 0.5 ? OWL_COLORS.lavender : OWL_COLORS.cocoa);
     model.root.scale.setScalar(0);
     const alert = createAlert(1.65);
+    const wary = createWary(1.65);
+    const note = createNote(1.65);
     const hootBubble = createBubble('hoo~', '#a58fd0', 1.65, 1.8);
-    model.root.add(alert, hootBubble);
+    model.root.add(alert, hootBubble, wary, note);
     this.group.add(model.root);
     this.occupied.add(tree);
     this.owls.push({
@@ -165,6 +201,12 @@ export class Owls {
       species: snowy ? 'snowy-owl' : 'owl',
       alert,
       hootBubble,
+      wary,
+      note,
+      alertness: 0,
+      waryTime: -1,
+      curiousTime: 0,
+      noteTime: ALERT_DURATION + 1,
       tree,
       state: 'perched',
       stateTime: 0,
@@ -196,6 +238,9 @@ export class Owls {
     o.stateTime += dt;
     o.alertTime += dt;
     animateAlert(o.alert, o.alertTime, 0.6);
+    o.noteTime += dt;
+    animateAlert(o.note, o.noteTime, 0.55, 1.2);
+    animateHold(o.wary, o.waryTime, 0.55);
 
     // Pop in, toy-style.
     let scale = SCALE;
@@ -267,10 +312,34 @@ export class Owls {
     for (const eye of eyes) eye.scale.set(eyeScale, eyeScale * Math.max(0.08, blink), eyeScale);
   }
 
+  /** Notice the car: stare at it when it moves close, flap off if it keeps coming. */
+  private sense(o: Owl, dt: number, car: CarPresence): void {
+    if (o.state !== 'perched' || o.appear < APPEAR_TIME) {
+      o.waryTime = -1;
+      return;
+    }
+    const dist = Math.hypot(o.tree.x - car.position.x, o.tree.z - car.position.z);
+    o.alertness = updateAlert(o.alertness, dt, dist, NOTICE, car);
+    if (o.alertness >= 1) {
+      this.startle(o, car.position);
+      o.waryTime = -1;
+    } else {
+      o.waryTime = o.alertness > WARY ? (o.waryTime < 0 ? 0 : o.waryTime + dt) : -1;
+    }
+  }
+
   /** Perched behaviour: owl-style head swivels, curious tilts, slow blinks and hoots. */
   private idle(o: Owl, dt: number, focus: THREE.Vector3): void {
+    o.curiousTime = Math.max(0, o.curiousTime - dt);
     o.headTimer -= dt;
-    if (o.headTimer <= 0) {
+    if (o.waryTime >= 0 || o.curiousTime > 0) {
+      // Swivel the head round to watch the car (owls can turn it a long way).
+      let rel = Math.atan2(focus.x - o.tree.x, focus.z - o.tree.z) - o.heading;
+      rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+      o.headTarget = THREE.MathUtils.clamp(rel, -1.9, 1.9);
+      o.headTilt = o.curiousTime > 0 ? 0.35 + Math.sin(o.curiousTime * 2) * 0.1 : 0;
+      o.headTimer = Math.max(o.headTimer, 0.8);
+    } else if (o.headTimer <= 0) {
       o.headTimer = 1.5 + Math.random() * 3;
       // Owls can look almost all the way round.
       o.headTarget = (Math.random() - 0.5) * 3.6;

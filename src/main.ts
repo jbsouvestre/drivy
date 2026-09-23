@@ -2,7 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
-import { audioContext, playShutter } from './game/audio';
+import { audioContext, playChime, playShutter } from './game/audio';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
 import { SkidMarks } from './game/SkidMarks';
@@ -24,9 +24,13 @@ import { Ducks } from './wildlife/Ducks';
 import { Fireflies } from './wildlife/Fireflies';
 import { Owls } from './wildlife/Owls';
 import { Squirrels } from './wildlife/Squirrels';
+import type { CarPresence } from './wildlife/awareness';
 
 const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
 const HONK_WORDS = ['beep!', 'honk!', 'meep!', 'toot!'];
+const CHIME_WORDS = ['♪ ding~', '♪ tinkle~', '♪ ding-ding'];
+/** Seconds between chimes. */
+const CHIME_COOLDOWN = 1.2;
 /** How long the speech bubble lingers after the horn is released. */
 const BUBBLE_LINGER = 0.35;
 /** Car speed allowed in photo mode, as a fraction of top speed: a gentle creep. */
@@ -224,6 +228,8 @@ window.addEventListener('keydown', (e) => {
   } else if (e.code === 'Space' && photo.active && !dialogOpen) {
     e.preventDefault();
     photo.requestShot();
+  } else if (e.code === 'KeyQ' && !e.repeat && playing && !dialogOpen) {
+    chime();
   } else if (e.code === 'KeyL' && !e.repeat && playing && !dialogOpen) {
     speedo.setHeadlights(car.toggleHeadlights());
   } else if (e.key === 'Escape' && playing && !dialogOpen) {
@@ -314,8 +320,26 @@ function updatePhotoHint(dt: number): void {
   photoHud.setHint(id, shot.stars, id ? !!journal.entry(id) : false);
 }
 
-function popHonkBubble(): void {
-  honkBubble.textContent = HONK_WORDS[Math.floor(Math.random() * HONK_WORDS.length)];
+/** What the animals can sense about the car this frame. */
+const presence: CarPresence = { position: car.position, speed: 0, difficulty: 0 };
+let chimeCooldown = 0;
+
+/** Ring the soft chime: curious animals nearby turn to look (and calm down a little). */
+function chime(): void {
+  if (chimeCooldown > 0) return;
+  chimeCooldown = CHIME_COOLDOWN;
+  playChime();
+  speedo.wake();
+  squirrels.chime(car.position);
+  ducks.chime(car.position);
+  owls.chime(car.position);
+  fireflies.attract(car.position);
+  popHonkBubble(CHIME_WORDS);
+  bubbleTime = BUBBLE_LINGER * 3;
+}
+
+function popHonkBubble(words = HONK_WORDS): void {
+  honkBubble.textContent = words[Math.floor(Math.random() * words.length)];
   // Restart the pop animation even if the bubble is already showing.
   honkBubble.classList.remove('show');
   void honkBubble.offsetWidth;
@@ -341,6 +365,9 @@ function frame(timestamp: number): void {
   const dt = paused ? 0 : Math.min(timer.getDelta(), 1 / 20);
 
   const honking = playing && !paused && input.honk;
+  chimeCooldown = Math.max(0, chimeCooldown - dt);
+  presence.speed = playing ? car.velocity.length() : 0;
+  presence.difficulty = world.difficultyAt(car.position.x, car.position.z);
   if (car.setHorn(honking)) {
     horn.start();
     speedo.wake();
@@ -383,9 +410,9 @@ function frame(timestamp: number): void {
   if (!paused) {
     dayNight.update(dt, playing && input.fastForward);
     updateNightfall();
-    squirrels.update(dt, car.position, dayNight.isNight);
-    owls.update(dt, car.position, dayNight.darkness);
-    ducks.update(dt, car.position, dayNight.darkness);
+    squirrels.update(dt, car.position, dayNight.isNight, presence);
+    owls.update(dt, car.position, dayNight.darkness, presence);
+    ducks.update(dt, car.position, dayNight.darkness, presence);
     fireflies.update(dt, car.position, dayNight.darkness, world);
   }
   // Follow the car along the ground so honk hops don't bob the camera.
