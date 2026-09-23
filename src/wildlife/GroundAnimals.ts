@@ -3,13 +3,18 @@ import type { SpeciesId, Subject } from '../safari/species';
 import type { Collider } from '../world/props';
 import type { World } from '../world/World';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
-import { updateAlert, WARY, type CarPresence } from './awareness';
-import { createDeer, createFox, createHedgehog, type GroundModel } from './models';
+import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
+import { createDeer, createFox, createHedgehog, FOX_COLORS, makeLegendary, type GroundModel } from './models';
 
-type Kind = 'deer' | 'fox' | 'hedgehog';
+type Kind = 'deer' | 'fox' | 'hedgehog' | 'moonFox';
+/** Which behaviour/animation set an animal uses (a legendary can reuse a regular one). */
+type Behaves = 'deer' | 'fox' | 'hedgehog';
 
 interface KindDef {
   species: SpeciesId;
+  behaves: Behaves;
+  /** Legendaries: base chance per spawn check (scaled by difficulty) that one turns up. */
+  legendaryChance?: number;
   create: () => GroundModel;
   scale: number;
   walkSpeed: number;
@@ -34,6 +39,7 @@ interface KindDef {
 const KINDS: Record<Kind, KindDef> = {
   deer: {
     species: 'deer',
+    behaves: 'deer',
     create: createDeer,
     scale: 1.25,
     walkSpeed: 1.3,
@@ -50,6 +56,7 @@ const KINDS: Record<Kind, KindDef> = {
   },
   fox: {
     species: 'fox',
+    behaves: 'fox',
     create: createFox,
     scale: 1.3,
     walkSpeed: 2,
@@ -66,6 +73,7 @@ const KINDS: Record<Kind, KindDef> = {
   },
   hedgehog: {
     species: 'hedgehog',
+    behaves: 'hedgehog',
     create: createHedgehog,
     scale: 1.3,
     walkSpeed: 0.6,
@@ -79,6 +87,29 @@ const KINDS: Record<Kind, KindDef> = {
     radius: 0.38,
     reaction: 'curl',
     gait: 9,
+  },
+  // Legendary: a glowing lilac fox that only comes out at night, and never sleeps.
+  moonFox: {
+    species: 'moon-fox',
+    behaves: 'fox',
+    legendaryChance: 0.006,
+    create: () => {
+      const model = createFox(FOX_COLORS.moon);
+      makeLegendary(model.root, 0.45);
+      return model;
+    },
+    scale: 1.3,
+    walkSpeed: 2,
+    fleeSpeed: 7,
+    notice: 18,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: true,
+    sleepsAtNight: false,
+    height: 0.75,
+    radius: 0.45,
+    reaction: 'flee',
+    gait: 5,
   },
 };
 
@@ -216,6 +247,7 @@ export class GroundAnimals {
     for (const kind of Object.keys(KINDS) as Kind[]) {
       const def = KINDS[kind];
       if (def.nocturnal && darkness < 0.4) continue;
+      if (def.legendaryChance !== undefined && Math.random() > rareChance(def.legendaryChance, this.world.difficultyAt(focus.x, focus.z))) continue;
       const groups = this.animals.filter((a) => a.kind === kind && !a.leader && a.leaving < 0).length;
       if (groups >= def.maxGroups) continue;
       const spot = this.findSpot(focus);
@@ -381,7 +413,7 @@ export class GroundAnimals {
     // Wary or curious: stop and look at the car. Curious hedgehogs trundle closer.
     if (a.waryTime >= 0 || a.curiousTime > 0) {
       desired = towardCar;
-      speed = a.curiousTime > 0 && a.kind === 'hedgehog' && carDist > 3.5 ? a.def.walkSpeed : 0;
+      speed = a.curiousTime > 0 && a.def.behaves === 'hedgehog' && carDist > 3.5 ? a.def.walkSpeed : 0;
     }
 
     this.steer(a, desired, speed, dt, a.state === 'flee' ? 6 : 3);
@@ -396,7 +428,7 @@ export class GroundAnimals {
       return;
     }
     const r = Math.random();
-    switch (a.kind) {
+    switch (a.def.behaves) {
       case 'deer':
         if (r < 0.55) this.setState(a, 'graze', 4 + Math.random() * 4);
         else if (r < 0.9 && this.pickTarget(a, 8)) this.setState(a, 'walk', 8);
@@ -460,15 +492,15 @@ export class GroundAnimals {
 
   private behavior(a: Animal): string {
     if (a.state === 'shock') return 'startled';
-    if (a.kind === 'hedgehog') {
+    if (a.def.behaves === 'hedgehog') {
       if (a.state === 'curl') return 'curled';
       if (a.curiousTime > 0) return 'curious';
       return a.state === 'sniff' ? 'sniffing' : 'shuffling';
     }
-    if (a.state === 'flee') return a.kind === 'deer' ? 'bounding' : 'startled';
+    if (a.state === 'flee') return a.def.behaves === 'deer' ? 'bounding' : 'startled';
     if (a.curiousTime > 0) return 'curious';
     if (a.state === 'sleep') return 'sleeping';
-    if (a.kind === 'deer') return a.state === 'walk' ? 'walking' : 'grazing';
+    if (a.def.behaves === 'deer') return a.state === 'walk' ? 'walking' : 'grazing';
     if (a.state === 'sit') return 'sitting';
     if (a.state === 'pounce') return 'pouncing';
     return 'trotting';
@@ -491,7 +523,7 @@ export class GroundAnimals {
     a.gaitPhase += a.speed * a.def.gait * dt;
     const swing = Math.sin(a.gaitPhase) * Math.min(0.65, a.speed * 0.35);
     let hop = 0;
-    if (a.state === 'flee' && a.kind === 'deer') hop = Math.abs(Math.sin(a.gaitPhase * 0.5)) * 0.55; // bounding leaps
+    if (a.state === 'flee' && a.def.behaves === 'deer') hop = Math.abs(Math.sin(a.gaitPhase * 0.5)) * 0.55; // bounding leaps
     if (a.state === 'shock') hop = Math.sin(Math.PI * Math.min(1, a.stateTime / 0.3)) * 0.35;
     if (a.state === 'pounce' && a.stateTime > 0.5 && a.stateTime < 0.9) hop = Math.sin(((a.stateTime - 0.5) / 0.4) * Math.PI) * 0.5;
 
@@ -501,7 +533,7 @@ export class GroundAnimals {
 
     // Reset pose, then layer on the current state.
     body.rotation.set(0, 0, 0);
-    body.position.y = a.kind === 'hedgehog' ? 0.22 : 0;
+    body.position.y = a.def.behaves === 'hedgehog' ? 0.22 : 0;
     body.scale.set(1, 1, 1);
     head.rotation.set(0, 0, 0);
     head.scale.setScalar(1);
@@ -510,7 +542,7 @@ export class GroundAnimals {
       leg.rotation.set((i === 0 || i === 3 ? 1 : -1) * swing, 0, 0);
       leg.scale.setScalar(1);
     });
-    let neckDip = a.kind === 'deer' ? -0.1 : 0;
+    let neckDip = a.def.behaves === 'deer' ? -0.1 : 0;
 
     switch (a.state) {
       case 'graze':
@@ -539,7 +571,7 @@ export class GroundAnimals {
         break;
       case 'sleep':
         // Lie down: legs tucked under, head resting.
-        body.position.y = a.kind === 'deer' ? -0.62 : -0.24;
+        body.position.y = a.def.behaves === 'deer' ? -0.62 : -0.24;
         legs.forEach((leg, i) => {
           // Front legs fold back, hind legs fold forward: tucked under the body.
           leg.rotation.x = i < 2 ? 1.45 : -1.45;
@@ -547,7 +579,7 @@ export class GroundAnimals {
         });
         neckDip = 0.75;
         head.rotation.x = 0.3;
-        tail.rotation.y = a.kind === 'fox' ? 2.2 : 0;
+        tail.rotation.y = a.def.behaves === 'fox' ? 2.2 : 0;
         body.scale.y = 1 + Math.sin(a.time * 1.3) * 0.03; // slow breathing
         break;
       case 'curl':
@@ -560,7 +592,7 @@ export class GroundAnimals {
         break;
       case 'flee':
         neckDip = -0.2;
-        body.rotation.x = a.kind === 'deer' ? -Math.cos(a.gaitPhase * 0.5) * 0.25 : 0;
+        body.rotation.x = a.def.behaves === 'deer' ? -Math.cos(a.gaitPhase * 0.5) * 0.25 : 0;
         break;
     }
 
@@ -568,7 +600,7 @@ export class GroundAnimals {
     if (a.curiousTime > 0 && a.state !== 'sleep') {
       neckDip = -0.2;
       head.rotation.z = 0.3 + Math.sin(a.time * 2) * 0.08;
-      if (a.kind === 'fox') {
+      if (a.def.behaves === 'fox') {
         body.rotation.x = -0.5;
         body.position.y = -0.07;
         legs[2].rotation.x = legs[3].rotation.x = -1.2;
@@ -581,7 +613,7 @@ export class GroundAnimals {
     if (neck) neck.rotation.x += (neckDip - neck.rotation.x) * Math.min(1, 6 * dt);
 
     const wide = a.state === 'shock' || a.state === 'flee' ? 1.7 : a.curiousTime > 0 ? 1.3 : 1;
-    for (const eye of eyes) eye.scale.setScalar(EYE_SIZE[a.kind] * wide);
+    for (const eye of eyes) eye.scale.setScalar(EYE_SIZE[a.def.behaves] * wide);
 
     // Bubbles.
     a.alertTime += dt;

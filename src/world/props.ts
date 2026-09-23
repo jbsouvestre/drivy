@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type PropKind = 'roundTree' | 'pineTree' | 'stone' | 'blossomTree' | 'flowers';
+export type PropKind = 'roundTree' | 'pineTree' | 'stone' | 'blossomTree' | 'flowers' | 'reeds' | 'lilyPad' | 'waterLily';
 
 /** One placed prop. Its instance matrices are recomposed when it wobbles. */
 export interface Prop {
@@ -96,7 +96,65 @@ function buildDefs(): Record<PropKind, PropDef> {
     layout.map(([x, z], i) => new THREE.SphereGeometry(0.085, 6, 4).scale(1, 0.7, 1).translate(x, 0.3 + (i % 3) * 0.06, z)),
   );
 
+  // Reed bed: a clump of slim stalks, a few topped with fluffy cattails.
+  const reedLayout = [
+    [0, 0, 1.3],
+    [0.22, 0.12, 1.05],
+    [-0.2, 0.15, 1.15],
+    [0.1, -0.22, 0.95],
+    [-0.14, -0.18, 1.2],
+    [0.3, -0.08, 0.85],
+  ];
+  const reedStalks = mergeGeometries(
+    reedLayout.map(([x, z, h]) => new THREE.ConeGeometry(0.05, h, 4, 1, true).translate(x, h / 2, z)),
+  );
+  const cattails = mergeGeometries(
+    reedLayout
+      .filter((_, i) => i % 2 === 0)
+      .map(([x, z, h]) => new THREE.SphereGeometry(1, 6, 4).scale(0.065, 0.16, 0.065).translate(x, h * 0.78, z)),
+  );
+
+  // Lily pads: flat discs with the classic notch, one big and one small.
+  const pad = (r: number, x: number, z: number, turn: number) =>
+    new THREE.CylinderGeometry(r, r, 0.03, 14, 1, false, 0.25, Math.PI * 2 - 0.5).rotateY(turn).translate(x, 0, z);
+  const lilyPads = mergeGeometries([pad(0.5, 0, 0, 0), pad(0.3, 0.62, 0.25, 2)]);
+  const lilyPadSingle = pad(0.5, 0, 0, 0);
+  const lilyPetals = mergeGeometries(
+    Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * Math.PI * 2;
+      return new THREE.SphereGeometry(1, 6, 4)
+        .scale(0.07, 0.035, 0.14)
+        .rotateX(-0.5)
+        .translate(0, 0.02, 0.1)
+        .rotateY(a)
+        .translate(0.05, 0.06, 0.05);
+    }),
+  );
+  const lilyHeart = new THREE.SphereGeometry(0.05, 6, 4).translate(0.05, 0.08, 0.05);
+
   return {
+    reeds: {
+      radius: 0,
+      wobble: 0,
+      parts: [
+        { geometry: reedStalks, material: mat('#ffffff'), palette: ['#9fd4a0', '#b3dd9a', '#8fcbb0'] },
+        { geometry: cattails, material: mat('#c79a8f') },
+      ],
+    },
+    lilyPad: {
+      radius: 0,
+      wobble: 0,
+      parts: [{ geometry: lilyPads, material: mat('#ffffff'), palette: ['#8fd19e', '#a3dca4', '#9ad7b6'] }],
+    },
+    waterLily: {
+      radius: 0,
+      wobble: 0,
+      parts: [
+        { geometry: lilyPadSingle, material: mat('#9ad7a8') },
+        { geometry: lilyPetals, material: mat('#ffffff'), palette: ['#ffc8dd', '#ffffff', '#e6d4ff', '#ffd6e8'] },
+        { geometry: lilyHeart, material: mat('#ffe27a') },
+      ],
+    },
     blossomTree: {
       radius: 0.8,
       wobble: 0.24,

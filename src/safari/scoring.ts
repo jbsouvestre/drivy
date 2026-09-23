@@ -51,7 +51,8 @@ export function scoreShot(
     let bonus = 0;
     if (f.base > 0.05) {
       if (f.subject.behavior !== sp.behaviors[0].id) bonus += 0.12;
-      if (sp.rare) bonus += 0.15;
+      if (sp.legendary) bonus += 0.25;
+      else if (sp.rare) bonus += 0.15;
       if (light.goldenHour) bonus += 0.08;
       if (light.night) bonus += 0.05;
       const company = framed.filter((o) => o !== f && o.subject.species === f.subject.species).length;

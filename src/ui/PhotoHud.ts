@@ -58,6 +58,7 @@ export class PhotoHud {
   showPhoto(info: ToastInfo): void {
     const sp = info.species ? species(info.species) : null;
     const tags: string[] = [];
+    if (sp?.legendary) tags.push(`<span class="tag legendary">✨ Legendary!</span>`);
     if (info.result?.newSpecies) tags.push(`<span class="tag new">New species!</span>`);
     else if (info.result?.newBest) tags.push(`<span class="tag new">New best!</span>`);
     if (sp) {

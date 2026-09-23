@@ -1224,3 +1224,19 @@ body.photo-mode .honk-bubble {
   font-weight: 600;
   color: var(--ink-soft);
 }
+
+.rare.legendary {
+  background: linear-gradient(90deg, #ffe08a, #ffc6e0);
+  color: #7a5a1e;
+}
+
+.card.legendary-found {
+  box-shadow:
+    0 4px 0 #ffe08a,
+    0 0 0 2px #ffe8a8;
+}
+
+.tag.legendary {
+  background: linear-gradient(90deg, #ffe08a, #ffc6e0);
+  color: #7a5a1e;
+}

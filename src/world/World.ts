@@ -48,6 +48,8 @@ interface Chunk {
   water: THREE.Mesh | null;
   props: THREE.InstancedMesh[];
   colliders: Collider[];
+  /** Lily pads and water lilies (no collision), for animals that like to sit on them. */
+  pads: Prop[];
 }
 
 interface PropSpawn {
@@ -179,11 +181,12 @@ export class World implements Terrain {
     const b = this.biomes.sample(x, z);
     const hillScale = blend(b, (d) => d.hillHeight);
     const pondScale = blend(b, (d) => d.pondAmount);
+    const pondStart = blend(b, (d) => d.pondCoverage);
     const hilliness = smoothstep(0.42, 0.72, this.hillNoise.fbm(x / 50, z / 50, 3));
     const bumps = (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT;
     // Pond basins: only on the flat meadows between hills, and never at spawn.
     const pond =
-      smoothstep(0.6, 0.72, this.pondNoise.fbm(x / 40, z / 40, 2)) *
+      smoothstep(pondStart, pondStart + 0.12, this.pondNoise.fbm(x / 40, z / 40, 2)) *
       (1 - smoothstep(0, 0.25, hilliness)) *
       smoothstep(POND_CLEAR_RADIUS, POND_CLEAR_RADIUS + 10, Math.hypot(x, z));
     return hilliness * HILL_HEIGHT * hillScale + bumps - pond * POND_DEPTH * pondScale;
@@ -210,6 +213,19 @@ export class World implements Terrain {
    */
   difficultyAt(x: number, z: number): number {
     return smoothstep(DIFFICULTY_START, DIFFICULTY_FULL, Math.hypot(x, z));
+  }
+
+  /** Lily pads and water lilies within `range` of (x, z). */
+  padsNear(x: number, z: number, range: number, out: Prop[] = []): Prop[] {
+    out.length = 0;
+    for (let cz = Math.floor((z - range) / CHUNK_SIZE); cz <= Math.floor((z + range) / CHUNK_SIZE); cz++) {
+      for (let cx = Math.floor((x - range) / CHUNK_SIZE); cx <= Math.floor((x + range) / CHUNK_SIZE); cx++) {
+        const chunk = this.chunks.get(chunkKey(cx, cz));
+        if (!chunk) continue;
+        for (const p of chunk.pads) if (Math.hypot(p.x - x, p.z - z) <= range) out.push(p);
+      }
+    }
+    return out;
   }
 
   /** Collect colliders that could touch a circle of `range` around (x, z). */
@@ -280,8 +296,9 @@ export class World implements Terrain {
     if (water) group.add(water);
 
     const colliders: Collider[] = [];
-    const props = this.buildProps(this.scatter(cx, cz), group, colliders);
-    return { cx, cz, group, ground, water, props, colliders };
+    const pads: Prop[] = [];
+    const props = this.buildProps(this.scatter(cx, cz), group, colliders, pads);
+    return { cx, cz, group, ground, water, props, colliders, pads };
   }
 
   private buildGround(cx: number, cz: number): { mesh: THREE.Mesh; gridHeight: (i: number, j: number) => number } {
@@ -383,20 +400,45 @@ export class World implements Terrain {
         const x = cx * CHUNK_SIZE + i * SCATTER_CELL + margin + rx * (SCATTER_CELL - 2 * margin);
         const z = cz * CHUNK_SIZE + j * SCATTER_CELL + margin + rz * (SCATTER_CELL - 2 * margin);
         if (x * x + z * z < SPAWN_CLEAR_RADIUS * SPAWN_CLEAR_RADIUS) continue;
-        // Keep trees off the beach; stones may sit half in the water.
         const ground = this.heightAt(x, z);
-        if (ground < WATER_LEVEL - 0.1) continue;
-
-        const forest = this.forestNoise.fbm(x / 45, z / 45);
-        const rocky = this.terrainAt(x, z);
         // Which biome's planting rules apply here (mixed along borders).
         const b = this.biomes.sample(x, z);
         const here: BiomeId = rBiome < b.t ? b.a : b.b;
+        // Keep trees off the beach; stones may sit half in the water (wetlands plant in it).
+        if (here !== 'wetlands' && ground < WATER_LEVEL - 0.1) continue;
+
+        const forest = this.forestNoise.fbm(x / 45, z / 45);
+        const rocky = this.terrainAt(x, z);
         const dry = ground > WATER_LEVEL + 0.35;
 
         let kind: PropKind;
         let scale: number;
-        if (here === 'blossom') {
+        if (here === 'wetlands') {
+          const depth = WATER_LEVEL - ground;
+          if (depth > 0.3) {
+            // Open water: lily pads gather in drifting rafts, some in flower.
+            const lilies = 0.04 + smoothstep(0.42, 0.68, forest) * 0.4;
+            if (rSpawn >= lilies) continue;
+            kind = rVariant < 0.3 ? 'waterLily' : 'lilyPad';
+            scale = 0.8 + rScale * 0.6;
+          } else if (depth > -0.8) {
+            // The shoreline: thick reed beds.
+            if (rSpawn >= 0.7) continue;
+            kind = 'reeds';
+            scale = 1.2 + rScale * 0.6;
+          } else if (rSpawn < 0.04) {
+            kind = 'roundTree';
+            scale = 0.8 + rScale * 0.4;
+          } else if (rSpawn < 0.06) {
+            kind = 'stone';
+            scale = 0.6 + rScale * 0.7;
+          } else if (rSpawn < 0.14) {
+            kind = 'flowers';
+            scale = 0.7 + rScale * 0.5;
+          } else {
+            continue;
+          }
+        } else if (here === 'blossom') {
           // Airy woods of blossom trees with sunny glades full of flowers.
           const treeChance = 0.08 + smoothstep(0.45, 0.7, forest) * 0.4;
           const stoneChance = 0.012;
@@ -438,7 +480,7 @@ export class World implements Terrain {
   }
 
   /** Build one InstancedMesh per (kind, part) and a collider per prop. */
-  private buildProps(spawns: PropSpawn[], group: THREE.Group, colliders: Collider[]): THREE.InstancedMesh[] {
+  private buildProps(spawns: PropSpawn[], group: THREE.Group, colliders: Collider[], pads: Prop[]): THREE.InstancedMesh[] {
     const defs = propDefs();
     const meshes: THREE.InstancedMesh[] = [];
     const color = new THREE.Color();
@@ -462,7 +504,7 @@ export class World implements Terrain {
           kind,
           x: s.x,
           // Sink the base a little so it stays buried on slopes (stones more, they're wide).
-          y: this.heightAt(s.x, s.z) - (kind === 'stone' ? 0.15 * s.scale : 0.1),
+          y: floats(kind) ? WATER_LEVEL + 0.015 : this.heightAt(s.x, s.z) - (kind === 'stone' ? 0.15 * s.scale : 0.1),
           z: s.z,
           rotY: s.rotY,
           scale: s.scale,
@@ -476,6 +518,7 @@ export class World implements Terrain {
         });
         // Flowers etc. are pure decoration: nothing to bump into.
         if (def.radius > 0) colliders.push({ x: s.x, z: s.z, radius: def.radius * s.scale, prop });
+        if (floats(kind)) pads.push(prop);
       });
 
       for (const mesh of partMeshes) {
@@ -516,6 +559,11 @@ function groundColor(p: ParsedPalette, n: number, out: THREE.Color): THREE.Color
 function blend(s: BiomeSample, get: (d: ReturnType<typeof biome>) => number): number {
   const a = get(biome(s.a));
   return s.t === 1 ? a : a * s.t + get(biome(s.b)) * (1 - s.t);
+}
+
+/** Props that float on the water surface rather than sitting on the ground. */
+function floats(kind: PropKind): boolean {
+  return kind === 'lilyPad' || kind === 'waterLily';
 }
 
 function chunkKey(cx: number, cz: number): string {

@@ -64,7 +64,7 @@ export class JournalView {
         <article class="card unknown">
           <div class="card-photo"><span class="silhouette">${sp.emoji}</span></div>
           <div class="card-body">
-            <h3>???${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
+            <h3>???${badge(sp)}</h3>
             <p class="hint">${sp.hint}</p>
             <div class="chips">${chips}</div>
           </div>
@@ -72,19 +72,24 @@ export class JournalView {
     }
     const file = `drivy-${sp.id}.jpg`;
     return `
-      <article class="card">
+      <article class="card${sp.legendary ? ' legendary-found' : ''}">
         <div class="card-photo">
           <img src="${e.photo}" alt="${sp.name}" />
           <a class="save" href="${e.photo}" download="${file}" title="Save photo">⤓</a>
         </div>
         <div class="card-body">
-          <h3>${sp.emoji} ${sp.name}${sp.rare ? ' <span class="rare">rare</span>' : ''}</h3>
+          <h3>${sp.emoji} ${sp.name}${badge(sp)}</h3>
           <p class="stars">${starText(e.stars)}</p>
           <div class="chips">${chips}</div>
           <p class="meta">seed · ${escapeHtml(e.seed)}</p>
         </div>
       </article>`;
   }
+}
+
+function badge(sp: Species): string {
+  if (sp.legendary) return ' <span class="rare legendary">✨ legendary</span>';
+  return sp.rare ? ' <span class="rare">rare</span>' : '';
 }
 
 function escapeHtml(s: string): string {

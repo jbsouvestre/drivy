@@ -21,12 +21,14 @@ import { JournalView } from './ui/JournalView';
 import { PhotoHud } from './ui/PhotoHud';
 import { Speedometer } from './ui/Speedometer';
 import { Birds } from './wildlife/Birds';
+import { Dragonflies } from './wildlife/Dragonflies';
 import { Ducks } from './wildlife/Ducks';
 import { Fireflies } from './wildlife/Fireflies';
 import { GroundAnimals } from './wildlife/GroundAnimals';
 import { Owls } from './wildlife/Owls';
 import { Petals } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
+import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
 
 const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
@@ -90,7 +92,9 @@ scene.add(splashes.mesh);
 let wasWet = false;
 
 const ducks = new Ducks(world, splashes);
-scene.add(ducks.group);
+const wetland = new WetlandAnimals(world, splashes);
+const dragonflies = new Dragonflies(world);
+scene.add(ducks.group, wetland.group, dragonflies.group);
 
 const birds = new Birds();
 const squirrels = new Squirrels(world);
@@ -137,6 +141,8 @@ function loadSeed(seedText: string): void {
   owls.clear();
   ducks.clear();
   groundAnimals.clear();
+  wetland.clear();
+  dragonflies.clear();
   car.reset();
   skids.clear();
   world.update(car.position, 0);
@@ -293,6 +299,8 @@ function collectSubjects(): Subject[] {
   owls.collectSubjects(subjects);
   fireflies.collectSubjects(subjects);
   groundAnimals.collectSubjects(subjects);
+  wetland.collectSubjects(subjects);
+  dragonflies.collectSubjects(subjects);
   return subjects;
 }
 
@@ -367,6 +375,7 @@ function chime(): void {
   ducks.chime(car.position);
   owls.chime(car.position);
   groundAnimals.chime(car.position);
+  wetland.chime(car.position);
   fireflies.attract(car.position);
   popHonkBubble(CHIME_WORDS);
   bubbleTime = BUBBLE_LINGER * 3;
@@ -410,6 +419,8 @@ function frame(timestamp: number): void {
     owls.scare(car.position);
     ducks.scare(car.position);
     groundAnimals.scare(car.position);
+    wetland.scare(car.position);
+    dragonflies.scare(car.position);
     fireflies.scare(car.position);
     popHonkBubble();
     bubbleTime = BUBBLE_LINGER;
@@ -449,6 +460,8 @@ function frame(timestamp: number): void {
     owls.update(dt, car.position, dayNight.darkness, presence);
     ducks.update(dt, car.position, dayNight.darkness, presence);
     groundAnimals.update(dt, car.position, dayNight.darkness, presence);
+    wetland.update(dt, car.position, presence);
+    dragonflies.update(dt, car.position, dayNight.darkness < 0.5);
     fireflies.update(dt, car.position, dayNight.darkness, world);
     petals.update(dt, car.position, world.biomeWeight(car.position.x, car.position.z, 'blossom'));
     updateBiome(dt);

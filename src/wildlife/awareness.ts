@@ -43,3 +43,8 @@ export function updateAlert(alert: number, dt: number, distance: number, base: n
   if (distance < radius) return Math.min(1, alert + FILL_RATE * (1 - distance / radius) * (0.4 + 6 * noise) * dt);
   return Math.max(0, alert - CALM_RATE * dt);
 }
+
+/** Chance of a rare/legendary spawn: grows with distance from home (difficulty 0–1). */
+export function rareChance(base: number, difficulty: number): number {
+  return base * (0.4 + 1.6 * difficulty);
+}

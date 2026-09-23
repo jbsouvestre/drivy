@@ -131,7 +131,12 @@ Extra animals in frame add a small "group shot" bonus.
    starts ~160 units out, with blossom trees, flower glades, falling petals, and
    deer (herds, very shy), foxes (sit, pounce) and night-only hedgehogs (curl up when startled).
    Biome HUD pill, first-visit banner, journal grouped by biome (undiscovered = locked).
-4. **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.
+4. 🚧 **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.
+   - ✅ **Lily Wetlands** (tier 1): big flat lakes (`pondCoverage`), reed beds, lily pads and water lilies;
+     frogs (lily pads, croak, dive in), herons (wade, fish, fly off), pond turtles (swim, hide in shell), dragonflies.
+   - ✅ **Legendaries**: Golden Duck (Meadow), Moon Fox (Blossom Woods, night only), Golden Frog (Wetlands).
+     Spawn chance scales with difficulty (`rareChance`), they glow softly, +0.25 score bonus, gold journal badge.
+   - ⏳ Tier 2: Candy Dunes, Sherbet Coast. Tier 3: Snowdrop Hills, Mushroom Hollow.
 5. **Nice-to-haves.** Photo requests from a pelican editor, weather (rain → frogs, snow),
    ambient music per biome, cosmetic unlocks from journal completion.
 

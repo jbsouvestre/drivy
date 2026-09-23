@@ -214,6 +214,7 @@ export const DUCK_COLORS = {
   white: { body: '#fff8ee', head: '#fff8ee', wing: '#f1e8dc' },
   mallard: { body: '#eadfcf', head: '#a6e3cc', wing: '#d9ccb8' },
   duckling: { body: '#fff0a0', head: '#fff0a0', wing: '#f7e089' },
+  golden: { body: '#ffd66b', head: '#ffe9a3', wing: '#f5c24a' },
 };
 
 /** Round bath-toy duck. The waterline is y = 0; facing +Z. */
@@ -315,8 +316,14 @@ export function createDeer(): GroundModel {
 
 const FOX = { coat: '#ffac7d', white: '#fff6ee', dark: '#6e5a66', eye: '#4a3f58' };
 
+export const FOX_COLORS = {
+  red: FOX,
+  moon: { coat: '#ddd6ff', white: '#ffffff', dark: '#8f84c9', eye: '#6b5fb8' },
+};
+
 /** Little fox with a big fluffy tail. Feet at y = 0, facing +Z. */
-export function createFox(): GroundModel {
+export function createFox(colors: typeof FOX = FOX): GroundModel {
+  const FOX = colors;
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -416,4 +423,187 @@ export function createHedgehog(): GroundModel {
   const tail = new THREE.Group();
   body.add(tail);
   return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+export interface FrogModel {
+  root: THREE.Group;
+  body: THREE.Group;
+  /** Eye groups: scale y to blink, whole scale to go wide-eyed. */
+  eyes: THREE.Group[];
+  /** Puffs out when croaking. */
+  throat: THREE.Mesh;
+  /** Back legs: extend (rotate) during a hop. */
+  legs: THREE.Group[];
+}
+
+export const FROG_COLORS = {
+  green: { skin: '#9fdca0', belly: '#f4f9d8', throat: '#e6f5c6' },
+  golden: { skin: '#ffd66e', belly: '#fff4cf', throat: '#ffedb0' },
+};
+
+/** Squat little frog with big bubble eyes. Feet at y = 0, facing +Z. */
+export function createFrog(colors: { skin: string; belly: string; throat: string }): FrogModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, colors.skin, [0, 0.13, 0], [0.2, 0.13, 0.22]);
+  part(body, geo.sphere, colors.belly, [0, 0.1, 0.06], [0.16, 0.09, 0.17]);
+  part(body, geo.sphere, colors.skin, [0, 0.2, 0.13], [0.17, 0.11, 0.13]);
+  const throat = part(body, geo.sphere, colors.throat, [0, 0.12, 0.22], [0.08, 0.06, 0.05]);
+  part(body, geo.smallSphere, '#5b4e6b', [0, 0.19, 0.255], [0.08, 0.008, 0.012]); // smile
+  const eyes = [-1, 1].map((side) => {
+    const eye = new THREE.Group();
+    eye.position.set(0.085 * side, 0.3, 0.14);
+    body.add(eye);
+    part(eye, geo.sphere, colors.skin, [0, -0.01, 0], 0.065);
+    part(eye, geo.sphere, '#ffffff', [0, 0.005, 0.03], 0.05);
+    part(eye, geo.smallSphere, '#3d3350', [0, 0.005, 0.07], 0.026);
+    part(body, geo.smallSphere, '#ffb3c6', [0.12 * side, 0.17, 0.2], [0.035, 0.02, 0.015]);
+    return eye;
+  });
+  const legs = [-1, 1].map((side) => {
+    const leg = new THREE.Group();
+    leg.position.set(0.15 * side, 0.07, -0.08);
+    body.add(leg);
+    part(leg, geo.sphere, colors.skin, [0.02 * side, 0, 0], [0.07, 0.055, 0.12]);
+    part(leg, geo.sphere, colors.skin, [0.05 * side, -0.05, 0.1], [0.06, 0.015, 0.07]);
+    return leg;
+  });
+  for (const side of [-1, 1]) part(body, geo.sphere, colors.skin, [0.1 * side, 0.03, 0.17], [0.04, 0.03, 0.06]);
+  return { root, body, eyes, throat, legs };
+}
+
+export interface HeronModel {
+  root: THREE.Group;
+  body: THREE.Group;
+  /** Pivots at the shoulders: bends forward to fish. */
+  neck: THREE.Group;
+  head: THREE.Group;
+  legs: THREE.Group[];
+  /** Spread wings, only shown while flying (scale them up). */
+  wings: THREE.Group[];
+  eyes: THREE.Mesh[];
+}
+
+const HERON = { body: '#c8d0ef', wing: '#aebbe3', head: '#f1f2fb', beak: '#ffcf6b', leg: '#f1b79c', crest: '#6e6a8a', eye: '#3d3350' };
+
+/** Tall, elegant toy heron. Feet at y = 0, facing +Z. */
+export function createHeron(): HeronModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const legs = [-1, 1].map((side) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(0.08 * side, 0.86, 0);
+    body.add(pivot);
+    part(pivot, geo.cylinder, HERON.leg, [0, -0.43, 0], [0.022, 0.86, 0.022]);
+    part(pivot, geo.sphere, HERON.leg, [0, -0.85, 0.06], [0.05, 0.012, 0.09]);
+    return pivot;
+  });
+  part(body, geo.sphere, HERON.body, [0, 1.06, 0], [0.22, 0.24, 0.42]).rotation.x = -0.25;
+  part(body, geo.sphere, HERON.wing, [0, 1.12, -0.06], [0.24, 0.13, 0.4]).rotation.x = -0.25;
+  part(body, geo.cone, HERON.wing, [0, 1.02, -0.42], [0.1, 0.25, 0.05]).rotation.x = -1.9;
+
+  const neck = new THREE.Group();
+  neck.position.set(0, 1.16, 0.3);
+  body.add(neck);
+  part(neck, geo.cylinder, HERON.head, [0, 0.18, 0.06], [0.055, 0.4, 0.055]).rotation.x = 0.35;
+  part(neck, geo.cylinder, HERON.head, [0, 0.52, 0.1], [0.05, 0.34, 0.05]).rotation.x = -0.15;
+  const head = new THREE.Group();
+  head.position.set(0, 0.72, 0.1);
+  neck.add(head);
+  part(head, geo.sphere, HERON.head, [0, 0, 0], [0.08, 0.08, 0.11]);
+  part(head, geo.cone, HERON.beak, [0, -0.01, 0.22], [0.03, 0.28, 0.025]).rotation.x = Math.PI / 2;
+  part(head, geo.sphere, HERON.crest, [0, 0.04, -0.13], [0.02, 0.02, 0.1]).rotation.x = 0.4;
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, HERON.eye, [0.06 * side, 0.02, 0.05], 0.018));
+
+  const wings = [-1, 1].map((side) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(0.18 * side, 1.15, 0);
+    body.add(pivot);
+    part(pivot, geo.sphere, HERON.wing, [0.5 * side, 0, 0], [0.5, 0.04, 0.26]);
+    pivot.scale.setScalar(0.001);
+    return pivot;
+  });
+  return { root, body, neck, head, legs, wings, eyes };
+}
+
+export interface TurtleModel {
+  root: THREE.Group;
+  body: THREE.Group;
+  head: THREE.Group;
+  /** Flippers: paddle while swimming, tuck in to hide. */
+  legs: THREE.Group[];
+  eyes: THREE.Mesh[];
+}
+
+const TURTLE = { shell: '#8fcfb8', plate: '#b8e6d0', rim: '#7cbfa6', skin: '#dfe8a8', eye: '#3d3350' };
+
+/** Round pond turtle. Shell base at y = 0, facing +Z. */
+export function createTurtle(): TurtleModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, TURTLE.rim, [0, 0.05, 0], [0.32, 0.05, 0.38]);
+  part(body, geo.sphere, TURTLE.shell, [0, 0.1, 0], [0.29, 0.17, 0.35]);
+  for (const [x, z] of [[0, 0], [0.13, 0.13], [-0.13, 0.13], [0.13, -0.13], [-0.13, -0.13]]) {
+    part(body, geo.sphere, TURTLE.plate, [x, 0.22 - Math.hypot(x, z) * 0.35, z], [0.085, 0.03, 0.085]);
+  }
+  const head = new THREE.Group();
+  head.position.set(0, 0.08, 0.36);
+  body.add(head);
+  part(head, geo.sphere, TURTLE.skin, [0, 0.02, 0.06], [0.09, 0.075, 0.11]);
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, TURTLE.eye, [0.055 * side, 0.06, 0.12], 0.02));
+  const legs = [
+    [-0.26, 0.2],
+    [0.26, 0.2],
+    [-0.24, -0.22],
+    [0.24, -0.22],
+  ].map(([x, z]) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.04, z);
+    body.add(pivot);
+    part(pivot, geo.sphere, TURTLE.skin, [Math.sign(x) * 0.05, 0, 0], [0.09, 0.03, 0.06]);
+    return pivot;
+  });
+  return { root, body, head, legs, eyes };
+}
+
+export interface DragonflyModel {
+  root: THREE.Group;
+  wings: THREE.Group[];
+}
+
+let dragonflyWingMaterial: THREE.MeshStandardMaterial | null = null;
+
+/** Tiny dragonfly: slim body and two pairs of glassy wings. Facing +Z. */
+export function createDragonfly(color: string): DragonflyModel {
+  const root = new THREE.Group();
+  part(root, geo.sphere, color, [0, 0, -0.08], [0.028, 0.028, 0.24]);
+  part(root, geo.sphere, color, [0, 0.005, 0.14], 0.05);
+  dragonflyWingMaterial ??= new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.55, roughness: 0.2 });
+  const wings = [-1, 1].map((side) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(0.02 * side, 0.02, 0.05);
+    root.add(pivot);
+    for (const z of [0.03, -0.05]) {
+      const wing = new THREE.Mesh(geo.sphere, dragonflyWingMaterial!);
+      wing.scale.set(0.17, 0.006, 0.04);
+      wing.position.set(0.17 * side, 0, z);
+      pivot.add(wing);
+    }
+    return pivot;
+  });
+  return { root, wings };
+}
+
+/** Give a legendary animal a soft inner glow (its own materials, lit from within). */
+export function makeLegendary(root: THREE.Object3D, intensity = 0.35): void {
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || !(o.material instanceof THREE.MeshStandardMaterial)) return;
+    const m = o.material.clone();
+    m.emissive.copy(m.color);
+    m.emissiveIntensity = intensity;
+    o.material = m;
+  });
 }

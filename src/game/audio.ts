@@ -133,3 +133,26 @@ export function playChime(): void {
     }
   }
 }
+
+/** A soft little "ribbit": two quick low blips. */
+export function playRibbit(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  for (const at of [0, 0.11]) {
+    const start = ac.currentTime + at;
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(330, start);
+    osc.frequency.exponentialRampToValueAtTime(190, start + 0.08);
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(volume, start + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.09);
+    osc.connect(filter).connect(gain).connect(ac.destination);
+    osc.start(start);
+    osc.stop(start + 0.1);
+  }
+}

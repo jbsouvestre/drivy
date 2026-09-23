@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { playQuack } from '../game/audio';
 import type { Splashes } from '../game/Splashes';
-import type { Terrain } from '../world/World';
-import type { Subject } from '../safari/species';
+import type { World } from '../world/World';
+import type { SpeciesId, Subject } from '../safari/species';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createBubble, createNote, createWary } from './alert';
-import { updateAlert, WARY, type CarPresence } from './awareness';
-import { createDuck, DUCK_COLORS, type DuckModel } from './models';
+import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
+import { createDuck, DUCK_COLORS, makeLegendary, type DuckModel } from './models';
 
 const MAX_FAMILIES = 2;
 /** Families appear on water in this ring around the player, and leave beyond DESPAWN_RADIUS. */
@@ -30,6 +30,8 @@ const PERSONAL_SPACE = 5;
 const QUACK_RANGE = 35;
 const QUACK_VOLUME = 0.09;
 const EYE_SIZE = 0.025;
+/** Base chance (scaled up by difficulty) that a family's mother is the legendary Golden Duck. */
+const GOLDEN_DUCK_CHANCE = 0.05;
 /** Notice radius at full car speed (creeping shrinks it; see awareness). */
 const NOTICE = 16;
 /** The chime reaches families within this distance; they come to have a look for this long. */
@@ -64,6 +66,8 @@ interface Family {
   quackTime: number;
   quackBubble: THREE.Sprite;
   appear: number;
+  /** The mother's species: usually a duck, very occasionally the Golden Duck. */
+  motherSpecies: SpeciesId;
   /** 0–1: how bothered the family is by the car (judged by the mother). */
   alertness: number;
   /** Seconds spent wary so far, or -1 when not wary. */
@@ -96,7 +100,7 @@ export class Ducks {
   private sleepy = false;
 
   constructor(
-    private readonly terrain: Terrain,
+    private readonly terrain: World,
     private readonly splashes: Splashes,
   ) {
     const ringGeometry = new THREE.RingGeometry(0.8, 1, 28).rotateX(-Math.PI / 2);
@@ -178,7 +182,7 @@ export class Ducks {
         else if (this.sleepy) behavior = 'sleeping';
         else if (mother && f.quackTime < 1) behavior = 'quacking';
         out.push({
-          species: mother ? 'duck' : 'duckling',
+          species: mother ? f.motherSpecies : 'duckling',
           position: d.model.root.position.clone().add(new THREE.Vector3(0, 0.22 * d.scale, 0)),
           radius: 0.42 * d.scale,
           forward: new THREE.Vector3(Math.sin(d.heading), 0, Math.cos(d.heading)),
@@ -220,7 +224,10 @@ export class Ducks {
 
   private spawn(x: number, z: number): void {
     const heading = Math.random() * Math.PI * 2;
-    const mother = this.makeDuck(Math.random() < 0.5 ? DUCK_COLORS.white : DUCK_COLORS.mallard, MOTHER_SCALE, x, z, heading);
+    const golden = Math.random() < rareChance(GOLDEN_DUCK_CHANCE, this.terrain.difficultyAt(x, z));
+    const colors = golden ? DUCK_COLORS.golden : Math.random() < 0.5 ? DUCK_COLORS.white : DUCK_COLORS.mallard;
+    const mother = this.makeDuck(colors, MOTHER_SCALE, x, z, heading);
+    if (golden) makeLegendary(mother.model.root, 0.4);
     const ducks = [mother];
     const count = 2 + Math.floor(Math.random() * 3);
     for (let i = 1; i <= count; i++) {
@@ -242,6 +249,7 @@ export class Ducks {
       quackTime: Infinity,
       quackBubble,
       appear: 0,
+      motherSpecies: golden ? 'golden-duck' : 'duck',
       alertness: 0,
       waryTime: -1,
       curiousTime: 0,

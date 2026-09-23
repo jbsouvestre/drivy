@@ -14,7 +14,14 @@ export type SpeciesId =
   | 'firefly'
   | 'deer'
   | 'fox'
-  | 'hedgehog';
+  | 'hedgehog'
+  | 'frog'
+  | 'heron'
+  | 'turtle'
+  | 'dragonfly'
+  | 'golden-duck'
+  | 'moon-fox'
+  | 'golden-frog';
 
 export interface Behavior {
   id: string;
@@ -29,6 +36,8 @@ export interface Species {
   /** Shown on the journal page before the species has been photographed. */
   hint: string;
   rare: boolean;
+  /** One per biome: very rare, glows a little, and makes for a prized photo. */
+  legendary?: boolean;
   /** Behaviours to collect. The first one is the species' everyday state. */
   behaviors: Behavior[];
 }
@@ -54,6 +63,9 @@ export interface Subject {
 const b = (id: string, label: string): Behavior => ({ id, label });
 
 const BIRD_BEHAVIORS = [b('flying', 'Flying'), b('gliding', 'Gliding'), b('startled', 'Startled')];
+const DUCK_BEHAVIORS = [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
+const FOX_BEHAVIORS = [b('trotting', 'Trotting'), b('sitting', 'Sitting'), b('pouncing', 'Pouncing'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
+const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('hopping', 'Hopping'), b('curious', 'Curious'), b('startled', 'Diving in')];
 const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
@@ -64,7 +76,7 @@ export const SPECIES: Species[] = [
     emoji: '🦆',
     hint: 'Paddles around ponds with a trail of little ones.',
     rare: false,
-    behaviors: [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+    behaviors: DUCK_BEHAVIORS,
   },
   {
     id: 'duckling',
@@ -115,7 +127,7 @@ export const SPECIES: Species[] = [
     emoji: '🦊',
     hint: 'Trots between the blossom trees.',
     rare: false,
-    behaviors: [b('trotting', 'Trotting'), b('sitting', 'Sitting'), b('pouncing', 'Pouncing'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+    behaviors: FOX_BEHAVIORS,
   },
   {
     id: 'hedgehog',
@@ -125,6 +137,72 @@ export const SPECIES: Species[] = [
     hint: 'Snuffles about the woods after dusk.',
     rare: false,
     behaviors: [b('shuffling', 'Shuffling'), b('sniffing', 'Sniffing'), b('curled', 'Curled up'), b('curious', 'Curious')],
+  },
+  {
+    id: 'frog',
+    name: 'Frog',
+    biome: 'wetlands',
+    emoji: '🐸',
+    hint: 'Sits on lily pads. Plop!',
+    rare: false,
+    behaviors: FROG_BEHAVIORS,
+  },
+  {
+    id: 'heron',
+    name: 'Heron',
+    biome: 'wetlands',
+    emoji: '🪶',
+    hint: 'Wades in the shallows, fishing. The shyest bird around.',
+    rare: false,
+    behaviors: [b('standing', 'Standing'), b('wading', 'Wading'), b('fishing', 'Fishing'), b('one-leg', 'One-legged'), b('curious', 'Curious'), b('flying', 'Flying')],
+  },
+  {
+    id: 'turtle',
+    name: 'Pond Turtle',
+    biome: 'wetlands',
+    emoji: '🐢',
+    hint: 'Paddles lazily across the lakes.',
+    rare: false,
+    behaviors: [b('swimming', 'Swimming'), b('sunbathing', 'Sunbathing'), b('hiding', 'Hiding'), b('curious', 'Curious')],
+  },
+  {
+    id: 'dragonfly',
+    name: 'Dragonfly',
+    biome: 'wetlands',
+    emoji: '🪰',
+    hint: 'Darts over the reeds on sunny days.',
+    rare: false,
+    behaviors: [b('hovering', 'Hovering'), b('darting', 'Darting')],
+  },
+  {
+    id: 'golden-duck',
+    name: 'Golden Duck',
+    biome: 'meadow',
+    emoji: '🦆',
+    hint: 'A legend of the ponds… some say its feathers shine like the sun.',
+    rare: true,
+    legendary: true,
+    behaviors: DUCK_BEHAVIORS,
+  },
+  {
+    id: 'moon-fox',
+    name: 'Moon Fox',
+    biome: 'blossom',
+    emoji: '🦊',
+    hint: 'A legend of the woods, only ever seen at night.',
+    rare: true,
+    legendary: true,
+    behaviors: FOX_BEHAVIORS,
+  },
+  {
+    id: 'golden-frog',
+    name: 'Golden Frog',
+    biome: 'wetlands',
+    emoji: '🐸',
+    hint: 'A legend of the lily pads. Rarer the further you roam.',
+    rare: true,
+    legendary: true,
+    behaviors: FROG_BEHAVIORS,
   },
 ];
 
