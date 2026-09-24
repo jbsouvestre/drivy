@@ -1322,3 +1322,95 @@ body.photo-mode .honk-bubble {
   letter-spacing: 0.06em;
   color: #c3b8d0;
 }
+
+/* ---------- unsupported platform banner ---------- */
+
+.platform-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(560px, calc(100% - 24px));
+  padding: 10px 16px 10px 10px;
+  transform: translateX(-50%);
+  border-radius: 18px;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow:
+    0 5px 0 var(--lilac),
+    0 10px 24px rgba(91, 78, 107, 0.2);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.platform-banner[hidden] {
+  display: none;
+}
+
+.platform-banner p {
+  flex: 1;
+  margin: 0;
+}
+
+.banner-close {
+  flex: none;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #f3e9f7;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.banner-close:hover {
+  background: var(--lilac);
+  color: var(--ink);
+}
+
+.banner-close:focus-visible {
+  outline: 2px solid var(--lilac);
+  outline-offset: 2px;
+}
+
+.platform-banner strong {
+  display: block;
+}
+
+.sad-face {
+  flex: none;
+  width: 72px;
+  height: 32px;
+}
+
+.sad-face .cheek {
+  fill: var(--pink);
+  opacity: 0.7;
+}
+
+.sad-face .fill {
+  fill: var(--ink);
+}
+
+.sad-face .shine {
+  fill: #fff;
+}
+
+.sad-face .line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.sad-face .tear {
+  fill: #9fd3f5;
+}

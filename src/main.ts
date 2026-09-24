@@ -161,6 +161,30 @@ const diceBtn = document.querySelector<HTMLButtonElement>('#seed-dice')!;
 const playBtn = document.querySelector<HTMLButtonElement>('#play')!;
 const speedo = new Speedometer(document.querySelector<HTMLElement>('#speedo')!);
 document.querySelector<HTMLElement>('#version')!.textContent = `v${__APP_VERSION__}`;
+/**
+ * Touch-only devices (phones, tablets without a trackpad) can't drive yet: the game
+ * needs a keyboard. They still see the game, with a banner explaining why.
+ */
+const unsupportedPlatform = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+const platformBanner = document.querySelector<HTMLElement>('#platform-banner')!;
+/** Detection can be wrong: once closed, the banner stays closed on this browser. */
+const BANNER_CLOSED_KEY = 'drivy.platformBannerClosed';
+let bannerClosed = false;
+try {
+  bannerClosed = localStorage.getItem(BANNER_CLOSED_KEY) === '1';
+} catch {
+  // Storage blocked: show it (it can still be closed for this visit).
+}
+platformBanner.hidden = !unsupportedPlatform || bannerClosed;
+document.querySelector<HTMLButtonElement>('#platform-banner-close')!.addEventListener('click', () => {
+  platformBanner.hidden = true;
+  count('platform_banner.closed');
+  try {
+    localStorage.setItem(BANNER_CLOSED_KEY, '1');
+  } catch {
+    // Session-only.
+  }
+});
 const controlsDialog = document.querySelector<HTMLDialogElement>('#controls')!;
 const showControlsBtn = document.querySelector<HTMLButtonElement>('#show-controls')!;
 const hudHelpBtn = document.querySelector<HTMLButtonElement>('#hud-help')!;
@@ -342,7 +366,7 @@ const VISITED_KEY = 'drivy.visited';
   } catch {
     // Storage blocked: count it as a first visit.
   }
-  count('visit', 1, { returning });
+  count('visit', 1, { returning, touchOnly: unsupportedPlatform });
   gauge('journal.species_found', journal.progress().species);
 }
 
