@@ -94,7 +94,7 @@ export class World implements Terrain {
   private pondNoise = new ValueNoise2D(0);
   private biomes = new BiomeMap(0);
   private palette = PALETTES[0];
-  private readonly chunks = new Map<string, Chunk>();
+  private readonly chunks = new Map<number, Chunk>();
   private readonly wobbles = new Map<Prop, Wobble>();
   private readonly parsedPalettes = new Map<BiomeId, ParsedPalette>();
   /** Chunks still to build, nearest first. */
@@ -181,10 +181,15 @@ export class World implements Terrain {
    */
   heightAt(x: number, z: number): number {
     const b = this.biomes.sample(x, z);
-    const hillScale = blend(b, (d) => d.hillHeight);
-    const pondScale = blend(b, (d) => d.pondAmount);
-    const pondStart = blend(b, (d) => d.pondCoverage);
-    const duneScale = blend(b, (d) => d.duneHeight);
+    // Blend the two nearest biomes' terrain settings (no closures: this runs thousands of times per chunk).
+    const da = biome(b.a);
+    const db = biome(b.b);
+    const ta = b.t;
+    const tb = 1 - ta;
+    const hillScale = da.hillHeight * ta + db.hillHeight * tb;
+    const pondScale = da.pondAmount * ta + db.pondAmount * tb;
+    const pondStart = da.pondCoverage * ta + db.pondCoverage * tb;
+    const duneScale = da.duneHeight * ta + db.duneHeight * tb;
     const hilliness = smoothstep(0.42, 0.72, this.hillNoise.fbm(x / 50, z / 50, 3));
     const bumps = (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT;
     // Pond basins: only on the flat meadows between hills, and never at spawn.
@@ -307,6 +312,12 @@ export class World implements Terrain {
     const colliders: Collider[] = [];
     const pads: Prop[] = [];
     const props = this.buildProps(this.scatter(cx, cz), group, colliders, pads);
+    // Chunks never move: bake their transforms once instead of recomputing them every frame.
+    // (Prop wobbles write to the instance buffers, not these object transforms.)
+    group.traverse((o) => {
+      o.updateMatrix();
+      o.matrixAutoUpdate = false;
+    });
     return { cx, cz, group, ground, water, props, colliders, pads };
   }
 
@@ -644,19 +655,14 @@ function groundColor(p: ParsedPalette, n: number, out: THREE.Color): THREE.Color
   return out.lerpColors(p.mid, p.high, smoothstep(0.55, 0.72, n));
 }
 
-/** Blend a numeric biome property across the two biomes of a sample. */
-function blend(s: BiomeSample, get: (d: ReturnType<typeof biome>) => number): number {
-  const a = get(biome(s.a));
-  return s.t === 1 ? a : a * s.t + get(biome(s.b)) * (1 - s.t);
-}
-
 /** Props that float on the water surface rather than sitting on the ground. */
 function floats(kind: PropKind): boolean {
   return kind === 'lilyPad' || kind === 'waterLily';
 }
 
-function chunkKey(cx: number, cz: number): string {
-  return `${cx},${cz}`;
+/** Numeric map key for a chunk (no string building on hot paths). ±32k chunks ≈ ±1M units. */
+function chunkKey(cx: number, cz: number): number {
+  return (cx + 32768) * 65536 + (cz + 32768);
 }
 
 function smoothstep(edge0: number, edge1: number, x: number): number {

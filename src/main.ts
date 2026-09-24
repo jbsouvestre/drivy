@@ -7,6 +7,7 @@ import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
 import { SkidMarks } from './game/SkidMarks';
+import { warmUpShaders } from './game/warmup';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
 import type { Collider } from './world/props';
@@ -298,6 +299,7 @@ window.addEventListener('keydown', (e) => {
 seedInput.value = seedFromUrl() ?? randomSeedName();
 loadSeed(seedInput.value);
 rig.snap(car.position);
+warmUpShaders(renderer, scene, rig.camera, [petals.points, snowfall.points, spores.points, rainfall.points, snowstorm.points, fireflies.points]);
 
 // ---------- loop ----------
 

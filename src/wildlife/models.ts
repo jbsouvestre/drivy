@@ -525,7 +525,7 @@ export function createHeron(): HeronModel {
     pivot.position.set(0.18 * side, 1.15, 0);
     body.add(pivot);
     part(pivot, geo.sphere, HERON.wing, [0.5 * side, 0, 0], [0.5, 0.04, 0.26]);
-    pivot.scale.setScalar(0.001);
+    pivot.visible = false; // spread wings only show while flying
     return pivot;
   });
   return { root, body, neck, head, legs, wings, eyes };

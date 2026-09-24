@@ -104,8 +104,10 @@ export class Headlights {
 
     for (const light of this.lights) {
       light.intensity = this.level * INTENSITY;
-      // No point rendering shadow maps for lights that are off.
-      light.castShadow = this.level > 0.001;
+      // No point re-rendering shadow maps for lights that are off. (castShadow itself
+      // stays on: toggling it changes every shader's light setup and forces recompiles.)
+      // The shadow map must be rendered at least once to exist, or every shader sampling it fails.
+      light.shadow.autoUpdate = this.level > 0.001 || light.shadow.map === null;
     }
     this.beamMaterial.uniforms.uOpacity.value = this.level * BEAM_OPACITY;
     for (const bulb of this.bulbs) bulb.emissiveIntensity = 0.4 + this.level * 2.6;

@@ -89,6 +89,8 @@ interface Animal {
 }
 
 const _pads: Prop[] = [];
+/** States where an animal is mid-action and ignores the car and the chime. */
+const BUSY_STATES = new Set<State>(['hop', 'leap', 'dive', 'shock', 'fly', 'hide']);
 
 /**
  * Lily Wetlands wildlife: frogs on lily pads and shores, herons wading and
@@ -313,7 +315,7 @@ export class WetlandAnimals {
   // ---------------------------------------------------------------- behaviour
 
   private busy(a: Animal): boolean {
-    return ['hop', 'leap', 'dive', 'shock', 'fly', 'hide'].includes(a.state);
+    return BUSY_STATES.has(a.state);
   }
 
   private setState(a: Animal, state: State, duration: number): void {
@@ -613,13 +615,18 @@ export class WetlandAnimals {
         y += Math.min(9, a.stateTime * 2.4);
         const flap = Math.sin(a.stateTime * 6) * 0.7;
         m.wings.forEach((w, i) => {
+          w.visible = true;
           w.scale.setScalar(1);
           w.rotation.z = (i === 0 ? -1 : 1) * flap;
         });
         for (const leg of m.legs) leg.rotation.x = -1.3; // legs trail behind
         m.body.rotation.x = 0.25;
       } else {
-        m.wings.forEach((w) => w.scale.setScalar(a.state === 'shock' ? 0.6 : 0.001));
+        // Folded wings are hidden outright rather than drawn at a tiny scale.
+        m.wings.forEach((w) => {
+          w.visible = a.state === 'shock';
+          w.scale.setScalar(0.6);
+        });
         m.body.rotation.x = 0;
         m.legs[0].rotation.x = a.speed > 0.1 ? Math.sin(a.time * 3) * 0.4 : 0;
         m.legs[1].rotation.x = a.oneLeg ? -1.6 : a.speed > 0.1 ? -Math.sin(a.time * 3) * 0.4 : 0;

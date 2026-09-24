@@ -123,8 +123,17 @@ const BLEND = 36;
  * each cell picks a biome among those its distance from spawn allows. Near
  * spawn only the Meadow qualifies, so the world opens up the further you drive.
  */
+interface Cell {
+  /** Region centre in world units. */
+  x: number;
+  z: number;
+  biome: BiomeId;
+}
+
 export class BiomeMap {
   private readonly scratch: BiomeSample = { a: 'meadow', b: 'meadow', t: 1 };
+  /** Region centres and biomes, computed once per cell (this is sampled thousands of times per chunk). */
+  private readonly cells = new Map<number, Cell>();
 
   constructor(private readonly seed: number) {}
 
@@ -134,33 +143,28 @@ export class BiomeMap {
     const gz = Math.floor(z / CELL);
     let d1 = Infinity;
     let d2 = Infinity;
-    let c1x = 0;
-    let c1z = 0;
-    let c2x = 0;
-    let c2z = 0;
+    let c1: Cell | null = null;
+    let c2: Cell | null = null;
     for (let iz = gz - 1; iz <= gz + 1; iz++) {
       for (let ix = gx - 1; ix <= gx + 1; ix++) {
-        const h = hash2(this.seed ^ 0xb10e, ix, iz);
-        const cx = (ix + 0.15 + 0.7 * ((h & 0xffff) / 65536)) * CELL;
-        const cz = (iz + 0.15 + 0.7 * ((h >>> 16) / 65536)) * CELL;
-        const d = Math.hypot(x - cx, z - cz);
+        const c = this.cell(ix, iz);
+        const dx = x - c.x;
+        const dz = z - c.z;
+        const d = Math.sqrt(dx * dx + dz * dz);
         if (d < d1) {
           d2 = d1;
-          c2x = c1x;
-          c2z = c1z;
+          c2 = c1;
           d1 = d;
-          c1x = ix;
-          c1z = iz;
+          c1 = c;
         } else if (d < d2) {
           d2 = d;
-          c2x = ix;
-          c2z = iz;
+          c2 = c;
         }
       }
     }
     const s = this.scratch;
-    s.a = this.cellBiome(c1x, c1z);
-    s.b = this.cellBiome(c2x, c2z);
+    s.a = c1!.biome;
+    s.b = c2!.biome;
     const u = Math.min(1, Math.max(0, (d2 - d1) / BLEND));
     s.t = s.a === s.b ? 1 : 0.5 + 0.5 * u * u * (3 - 2 * u);
     return s;
@@ -172,11 +176,23 @@ export class BiomeMap {
     return (s.a === id ? s.t : 0) + (s.b === id ? 1 - s.t : 0);
   }
 
+  /** A region's jittered centre and its biome (cached). */
+  private cell(ix: number, iz: number): Cell {
+    // Cells are ~190 units wide, so ±32k cells covers any distance anyone will drive.
+    const key = (ix + 32768) * 65536 + (iz + 32768);
+    let c = this.cells.get(key);
+    if (!c) {
+      const h = hash2(this.seed ^ 0xb10e, ix, iz);
+      const x = (ix + 0.15 + 0.7 * ((h & 0xffff) / 65536)) * CELL;
+      const z = (iz + 0.15 + 0.7 * ((h >>> 16) / 65536)) * CELL;
+      c = { x, z, biome: this.cellBiome(ix, iz, x, z) };
+      this.cells.set(key, c);
+    }
+    return c;
+  }
+
   /** The biome a cell belongs to, limited by its distance from spawn. */
-  private cellBiome(ix: number, iz: number): BiomeId {
-    const h = hash2(this.seed ^ 0xb10e, ix, iz);
-    const cx = (ix + 0.15 + 0.7 * ((h & 0xffff) / 65536)) * CELL;
-    const cz = (iz + 0.15 + 0.7 * ((h >>> 16) / 65536)) * CELL;
+  private cellBiome(ix: number, iz: number, cx: number, cz: number): BiomeId {
     const dist = Math.hypot(cx, cz);
     // A region's edge reaches ~half a cell nearer than its centre, so judge the tier
     // with that margin: a biome's first edges then appear around its minDistance.
