@@ -148,6 +148,7 @@ const seedInput = document.querySelector<HTMLInputElement>('#seed-input')!;
 const diceBtn = document.querySelector<HTMLButtonElement>('#seed-dice')!;
 const playBtn = document.querySelector<HTMLButtonElement>('#play')!;
 const speedo = new Speedometer(document.querySelector<HTMLElement>('#speedo')!);
+document.querySelector<HTMLElement>('#version')!.textContent = `v${__APP_VERSION__}`;
 const controlsDialog = document.querySelector<HTMLDialogElement>('#controls')!;
 const showControlsBtn = document.querySelector<HTMLButtonElement>('#show-controls')!;
 const hudHelpBtn = document.querySelector<HTMLButtonElement>('#hud-help')!;

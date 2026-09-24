@@ -1287,3 +1287,11 @@ body.photo-mode .honk-bubble {
   background: #ffe08a;
   color: #7a5a1e;
 }
+
+.version {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #c3b8d0;
+}
