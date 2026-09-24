@@ -207,3 +207,94 @@ export function playLaunch(): void {
   osc.stop(t + 0.46);
   wobble.stop(t + 0.46);
 }
+
+/** A soft tone with a quick attack and an exponential fade. */
+function tone(ac: AudioContext, type: OscillatorType, freq: number, start: number, length: number, volume: number, destination: AudioNode = ac.destination): void {
+  const osc = ac.createOscillator();
+  osc.type = type;
+  osc.frequency.value = freq;
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+  osc.connect(gain).connect(destination);
+  osc.start(start);
+  osc.stop(start + length + 0.02);
+}
+
+/** A lighthouse answering a honk: a deep, mellow two-note foghorn. */
+export function playFoghorn(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 500;
+  filter.connect(ac.destination);
+  const t = ac.currentTime;
+  for (const [at, freq] of [
+    [0, 110],
+    [0.95, 87],
+  ]) {
+    tone(ac, 'sawtooth', freq, t + at, 1.0, 0.16 * volume, filter);
+    tone(ac, 'sine', freq / 2, t + at, 1.0, 0.12 * volume, filter);
+  }
+}
+
+/** The honk bouncing back off a pyramid or down a well: two fading "meep"s. */
+export function playEcho(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 1400;
+  filter.connect(ac.destination);
+  const t = ac.currentTime;
+  [0.35, 0.75].forEach((at, i) => {
+    const v = 0.05 * volume * (i === 0 ? 1 : 0.45);
+    tone(ac, 'square', 392, t + at, 0.22, v, filter);
+    tone(ac, 'square', 494, t + at, 0.22, v, filter);
+  });
+}
+
+/** Little temple bells tinkling on a pagoda. */
+export function playBells(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  const notes = [1568, 1760, 2093, 2349, 2637];
+  const t = ac.currentTime;
+  for (let i = 0; i < 5; i++) {
+    const freq = notes[Math.floor(Math.random() * notes.length)];
+    const at = t + i * 0.09 + Math.random() * 0.05;
+    tone(ac, 'sine', freq, at, 0.9, 0.05 * volume);
+    tone(ac, 'sine', freq * 2.76, at, 0.4, 0.012 * volume);
+  }
+}
+
+/** A magical rising twinkle (driving through a fairy ring). */
+export function playTwinkle(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  const t = ac.currentTime;
+  [1318.5, 1661, 1976, 2637, 3136].forEach((freq, i) => tone(ac, 'sine', freq, t + i * 0.07, 0.6, 0.05 * volume));
+}
+
+/** A soft sandy "poof" (a sandcastle collapsing). */
+export function playPoof(volume: number): void {
+  const ac = runningAudio();
+  if (!ac || volume <= 0.001) return;
+  const t = ac.currentTime;
+  const length = 0.35;
+  const buffer = ac.createBuffer(1, Math.floor(ac.sampleRate * length), ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 2;
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(1800, t);
+  filter.frequency.exponentialRampToValueAtTime(300, t + length);
+  const gain = ac.createGain();
+  gain.gain.value = 0.18 * volume;
+  src.connect(filter).connect(gain).connect(ac.destination);
+  src.start(t);
+}

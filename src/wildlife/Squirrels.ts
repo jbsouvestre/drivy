@@ -228,9 +228,10 @@ export class Squirrels {
     this.world.collidersNear(x, z, max, this.nearby);
     const out: Prop[] = [];
     for (const c of this.nearby) {
-      if (c.prop.kind !== 'roundTree' || this.occupied.has(c.prop)) continue;
+      const tree = c.prop;
+      if (tree?.kind !== 'roundTree' || this.occupied.has(tree)) continue;
       const d = Math.hypot(c.x - x, c.z - z);
-      if (d <= max && d >= min) out.push(c.prop);
+      if (d <= max && d >= min) out.push(tree);
     }
     return out;
   }

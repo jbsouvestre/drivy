@@ -176,7 +176,7 @@ export class Owls {
     if (perched >= MAX_OWLS) return;
     this.world.collidersNear(focus.x, focus.z, SPAWN_MAX, this.nearby);
     const pines = this.nearby
-      .filter((c) => c.prop.kind === 'pineTree' && !this.occupied.has(c.prop))
+      .filter((c): c is Collider & { prop: Prop } => c.prop?.kind === 'pineTree' && !this.occupied.has(c.prop))
       .filter((c) => {
         const d = Math.hypot(c.x - focus.x, c.z - focus.z);
         return d >= SPAWN_MIN && d <= SPAWN_MAX;

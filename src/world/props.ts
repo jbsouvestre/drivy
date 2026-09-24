@@ -34,12 +34,15 @@ export interface Prop {
   slots: { mesh: THREE.InstancedMesh; index: number }[];
 }
 
-/** Static circle obstacle on the ground plane. */
+/** Static circle obstacle on the ground plane: a prop, or part of a structure. */
 export interface Collider {
   x: number;
   z: number;
   radius: number;
-  prop: Prop;
+  /** The prop it belongs to (props wobble when bumped). */
+  prop?: Prop;
+  /** Structures handle their own bumps. */
+  bump?: (dirX: number, dirZ: number, impact: number) => void;
 }
 
 interface PartDef {

@@ -2,7 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
-import { audioContext, playChime, playLaunch, playShutter, playSquash } from './game/audio';
+import { audioContext, playBells, playChime, playEcho, playFoghorn, playLaunch, playPoof, playShutter, playSquash, playTwinkle } from './game/audio';
 import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
@@ -483,6 +483,11 @@ const presence: CarPresence = {
   camera: rig.camera.position,
 };
 
+// The world's structures make the odd sound of their own (a foghorn answering a honk…).
+const STRUCTURE_SOUNDS = { foghorn: playFoghorn, echo: playEcho, bells: playBells, twinkle: playTwinkle, poof: playPoof };
+world.structures.onSound((sound, volume) => STRUCTURE_SOUNDS[sound](volume));
+const structureContext = { time: 0, car: car.position, carSpeed: 0, darkness: 0, rain: 0 };
+
 // Drove into an animal: a cartoon sound (never a hurt one), and a note for the stats.
 onBonk((style, species) => {
   if (style === 'squash') playSquash();
@@ -543,6 +548,7 @@ function frame(timestamp: number): void {
   if (car.setHorn(honking)) {
     count('honk');
     horn.start();
+    world.structures.honk(car.position);
     speedo.wake();
     birds.scare(car.position);
     squirrels.scare(car.position);
@@ -582,6 +588,11 @@ function frame(timestamp: number): void {
   }
 
   world.update(car.position, dt);
+  structureContext.time += dt;
+  structureContext.carSpeed = playing ? car.velocity.length() : 0;
+  structureContext.darkness = dayNight.darkness;
+  structureContext.rain = weather.rain;
+  world.structures.update(structureContext, dt);
   updateWater(dt);
   // Ambience plays in the game and on the menu, and hushes while a dialog is open.
   updateAmbience(dt, !paused);

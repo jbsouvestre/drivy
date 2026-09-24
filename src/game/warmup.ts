@@ -31,6 +31,7 @@ import {
 import { propDefs } from '../world/props';
 import { roadMaterials } from '../world/roadMesh';
 import { dizzyMaterials } from '../wildlife/bonk';
+import { structureMaterials } from '../world/structures/builder';
 
 /**
  * Compile the shaders for every prop and animal up front (behind the splash
@@ -72,6 +73,11 @@ export function warmUpShaders(
     group.add(material instanceof THREE.SpriteMaterial ? new THREE.Sprite(material) : new THREE.Mesh(roadGeometry, material));
   }
 
+  // Buildings: solid, glowing windows, fire, smoke, sparkles, the lighthouse beam.
+  const structureGeometry = new THREE.BoxGeometry(1, 1, 1);
+  structureGeometry.setAttribute('color', new THREE.Float32BufferAttribute(new Array(structureGeometry.attributes.position.count * 3).fill(1), 3));
+  for (const material of structureMaterials()) group.add(new THREE.Mesh(structureGeometry, material));
+
   // One of each animal model (their materials are shared per colour, so this covers them all).
   group.add(
     createBird(BIRD_COLORS[0]).root,
@@ -108,4 +114,5 @@ export function warmUpShaders(
     if (o instanceof THREE.InstancedMesh) o.dispose();
   });
   roadGeometry.dispose();
+  structureGeometry.dispose();
 }

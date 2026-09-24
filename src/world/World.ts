@@ -6,6 +6,7 @@ import { biome, BiomeMap, type BiomeId, type BiomeSample, type GroundPalette } f
 import { buildWater, WATER_LEVEL } from './Water';
 import { Roads, type RoadKind, type RoadPath } from './Roads';
 import { buildRoadMeshes } from './roadMesh';
+import { Structures } from './structures/Structures';
 
 export const CHUNK_SIZE = 32;
 /** Chunks kept loaded around the player, in each direction. */
@@ -107,6 +108,8 @@ export class World implements Terrain {
   private pondNoise = new ValueNoise2D(0);
   private biomes = new BiomeMap(0);
   private readonly roads = new Roads();
+  /** Windmills, beach huts, igloos…: the human touches, placed like everything else by the seed. */
+  readonly structures = new Structures(this);
   private palette = PALETTES[0];
   private readonly chunks = new Map<number, Chunk>();
   private readonly wobbles = new Map<Prop, Wobble>();
@@ -118,6 +121,7 @@ export class World implements Terrain {
   private readonly groundMaterial: THREE.MeshStandardMaterial;
 
   constructor() {
+    this.group.add(this.structures.group);
     this.groundMaterial = new THREE.MeshStandardMaterial({
       map: createCheckerTexture(CHUNK_SIZE / (TILE_SIZE * 2)),
       vertexColors: true,
@@ -135,6 +139,7 @@ export class World implements Terrain {
     this.pondNoise = new ValueNoise2D(hash2(seed, 0x9014, 0xd5));
     this.biomes = new BiomeMap(hash2(seed, 0xb10, 0xe5));
     this.roads.setSeed(seed);
+    this.structures.setSeed(seed);
     const rand = mulberry32(hash2(seed, 0x9e37, 0x79b9));
     this.palette = PALETTES[Math.floor(rand() * PALETTES.length)];
     this.parsedPalettes.clear();
@@ -333,6 +338,10 @@ export class World implements Terrain {
   /** Make a prop wobble, leaning first toward (dirX, dirZ). */
   bump(collider: Collider, dirX: number, dirZ: number, impact: number): void {
     const prop = collider.prop;
+    if (!prop) {
+      collider.bump?.(dirX, dirZ, impact);
+      return;
+    }
     const chunk = this.chunks.get(chunkKey(Math.floor(prop.x / CHUNK_SIZE), Math.floor(prop.z / CHUNK_SIZE)));
     if (!chunk) return;
     const amp = propDefs()[prop.kind].wobble * THREE.MathUtils.clamp(impact / 14, 0.2, 1);
@@ -343,6 +352,7 @@ export class World implements Terrain {
 
   clear(): void {
     for (const chunk of this.chunks.values()) this.disposeChunk(chunk);
+    this.structures.clear();
     this.chunks.clear();
     this.wobbles.clear();
     this.pending.length = 0;
@@ -386,6 +396,8 @@ export class World implements Terrain {
     const paths = this.roads.pathsIn(x0, z0, x0 + CHUNK_SIZE, z0 + CHUNK_SIZE, _roadPaths);
     const roads = buildRoadMeshes(paths, x0, z0, CHUNK_SIZE, (x, z) => this.heightAt(x, z));
     for (const mesh of roads) group.add(mesh);
+    // Structures live in their own group (they animate, so they're not baked with the chunk).
+    this.structures.buildChunk(chunkKey(cx, cz), x0, z0, CHUNK_SIZE, colliders);
     // Chunks never move: bake their transforms once instead of recomputing them every frame.
     // (Prop wobbles write to the instance buffers, not these object transforms.)
     group.traverse((o) => {
@@ -494,8 +506,9 @@ export class World implements Terrain {
         const x = cx * CHUNK_SIZE + i * SCATTER_CELL + margin + rx * (SCATTER_CELL - 2 * margin);
         const z = cz * CHUNK_SIZE + j * SCATTER_CELL + margin + rz * (SCATTER_CELL - 2 * margin);
         if (x * x + z * z < SPAWN_CLEAR_RADIUS * SPAWN_CLEAR_RADIUS) continue;
-        // Roads are kept clear: nothing grows on them or right beside them.
+        // Roads and structures are kept clear: nothing grows on them or right beside them.
         if (this.roads.clearance(x, z) < ROAD_PROP_CLEAR) continue;
+        if (this.structures.blocks(x, z)) continue;
         const ground = this.heightAt(x, z);
         // Which biome's planting rules apply here (mixed along borders).
         const b = this.biomes.sample(x, z);
@@ -713,6 +726,7 @@ export class World implements Terrain {
     // Prop geometries/materials are shared; only the per-chunk instance buffers go.
     for (const mesh of chunk.props) mesh.dispose();
     for (const mesh of chunk.roads) mesh.geometry.dispose();
+    this.structures.disposeChunk(chunkKey(chunk.cx, chunk.cz));
   }
 }
 
