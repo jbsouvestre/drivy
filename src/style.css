@@ -1414,3 +1414,171 @@ body.photo-mode .honk-bubble {
 .sad-face .tear {
   fill: #9fd3f5;
 }
+
+/* ---------- keep in photobook (on the polaroid) ---------- */
+
+.keep {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 4px 10px 4px 4px;
+  border: none;
+  border-radius: 999px;
+  background: #f6f0fa;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.keep-key {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+
+.keep-key svg {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.keep-key circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.keep-track {
+  stroke: #e7dcf0;
+}
+
+/* Drains over the time the polaroid stays up: the window to keep it. */
+.keep-ring {
+  stroke: var(--pink);
+  stroke-linecap: round;
+  stroke-dashoffset: 0;
+  animation: keep-countdown var(--keep-time, 5s) linear forwards;
+}
+
+.keep-key kbd {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+@keyframes keep-countdown {
+  to {
+    stroke-dashoffset: 94.25;
+  }
+}
+
+.keep.kept {
+  background: var(--mint);
+  cursor: default;
+}
+
+.keep.kept .keep-ring {
+  animation: none;
+  stroke: #5fbf97;
+}
+
+/* ---------- journal tabs & photobook ---------- */
+
+.journal-tabs {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 18px;
+}
+
+.journal-tab {
+  padding: 8px 16px;
+  border: 3px solid #efe6f5;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.journal-tab[aria-selected='true'] {
+  border-color: var(--mint);
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.journal-tab:focus-visible {
+  outline: 3px solid var(--lilac);
+  outline-offset: 2px;
+}
+
+.tab-count:not(:empty) {
+  margin-left: 4px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.tab-journal[hidden],
+.tab-photobook[hidden] {
+  display: none;
+}
+
+.tab-journal {
+  display: grid;
+  gap: 22px;
+}
+
+.photobook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.photobook-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 28px 22px;
+  border: 2px dashed #e2d6ec;
+  border-radius: 20px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.book-card .meta {
+  margin: 4px 0 0;
+}
+
+.delete {
+  position: absolute;
+  right: 44px;
+  bottom: 8px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete.confirm {
+  background: var(--pink-deep);
+  color: #fff;
+}
+
+.delete:focus-visible {
+  outline: 3px solid var(--lilac);
+  outline-offset: 2px;
+}

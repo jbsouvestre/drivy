@@ -1,25 +1,46 @@
 import type { BiomeId } from '../world/biomes';
+import { dataUrlToBlob, type Snapshot } from './snapshot';
 import { SPECIES, type SpeciesId } from './species';
+import { getAll, JOURNAL_PHOTOS, put, requestPersistence } from './storage';
 
 const STORAGE_KEY = 'drivy.journal.v1';
 const BIOMES_KEY = 'drivy.biomes.v1';
 
+/** What the journal knows about a species (small: kept in localStorage). */
 export interface JournalEntry {
   /** Best star rating so far (1–3). */
   stars: number;
   /** Behaviour ids photographed at least once. */
   behaviors: string[];
-  /** Best photo as a JPEG data URL. */
-  photo: string;
+  /** When the best photo was taken. */
   takenAt: number;
   seed: string;
+  /**
+   * Up to 1.3, the best photo was stored right here as a base64 data URL. It's
+   * moved to IndexedDB on load (and kept here only if that isn't possible).
+   */
+  photo?: string;
+}
+
+/** A species' best photo, ready to show: object URLs (or a legacy data URL). */
+export interface JournalPhoto {
+  thumb: string;
+  full: string;
+}
+
+/** A best photo as stored in IndexedDB. */
+interface StoredPhoto {
+  species: SpeciesId;
+  full: Blob;
+  thumb: Blob;
+  takenAt: number;
 }
 
 export interface Photo {
   species: SpeciesId;
   stars: number;
   behaviors: string[];
-  image: string;
+  snapshot: Snapshot;
   seed: string;
 }
 
@@ -30,13 +51,15 @@ export interface RecordResult {
 }
 
 /**
- * The field journal: one per player, shared across every seed. Persists to
- * localStorage; if storage is unavailable it still works for the session.
+ * The field journal: one per player, shared across every seed. Its entries live
+ * in localStorage (they're small); each species' best photo lives in IndexedDB.
+ * If storage is unavailable it still works for the session.
  */
 export class Journal {
   private entries: Partial<Record<SpeciesId, JournalEntry>> = {};
   private readonly visited = new Set<BiomeId>(['meadow']);
   private readonly listeners = new Set<() => void>();
+  private readonly photos = new Map<SpeciesId, JournalPhoto>();
 
   constructor() {
     try {
@@ -47,6 +70,15 @@ export class Journal {
     } catch {
       this.entries = {};
     }
+    void this.loadPhotos();
+  }
+
+  /** A species' best photo (null until it's been photographed, or while loading). */
+  photo(id: SpeciesId): JournalPhoto | null {
+    const stored = this.photos.get(id);
+    if (stored) return stored;
+    const legacy = this.entries[id]?.photo;
+    return legacy ? { thumb: legacy, full: legacy } : null;
   }
 
   hasVisited(id: BiomeId): boolean {
@@ -77,13 +109,16 @@ export class Journal {
     const newBehaviors = photo.behaviors.filter((b) => !seen.has(b));
     const newBest = !prev || photo.stars > prev.stars;
 
+    const takenAt = newBest ? Date.now() : prev!.takenAt;
     this.entries[photo.species] = {
       stars: Math.max(prev?.stars ?? 0, photo.stars),
       behaviors: [...seen, ...newBehaviors],
-      photo: newBest ? photo.image : prev!.photo,
-      takenAt: newBest ? Date.now() : prev!.takenAt,
+      takenAt,
       seed: newBest ? photo.seed : prev!.seed,
+      // A new best replaces any legacy inline photo.
+      ...(!newBest && prev?.photo ? { photo: prev.photo } : {}),
     };
+    if (newBest) this.setPhoto(photo.species, photo.snapshot.full, photo.snapshot.thumb, takenAt);
     this.save();
     return { newSpecies: !prev, newBehaviors, newBest: newBest && !!prev };
   }
@@ -108,6 +143,47 @@ export class Journal {
 
   onChange(listener: () => void): void {
     this.listeners.add(listener);
+  }
+
+  /** Show a new best photo right away, and store it in the background. */
+  private setPhoto(id: SpeciesId, full: Blob, thumb: Blob, takenAt: number): void {
+    const old = this.photos.get(id);
+    if (old) {
+      URL.revokeObjectURL(old.thumb);
+      URL.revokeObjectURL(old.full);
+    }
+    this.photos.set(id, { thumb: URL.createObjectURL(thumb), full: URL.createObjectURL(full) });
+    requestPersistence();
+    void put(JOURNAL_PHOTOS, { species: id, full, thumb, takenAt } satisfies StoredPhoto);
+  }
+
+  /** Load stored photos, and move any legacy inline (base64) photos into IndexedDB. */
+  private async loadPhotos(): Promise<void> {
+    let stored: StoredPhoto[] = [];
+    try {
+      stored = await getAll<StoredPhoto>(JOURNAL_PHOTOS);
+    } catch {
+      return; // No IndexedDB: legacy photos keep showing from localStorage.
+    }
+    for (const r of stored) {
+      // A photo taken while loading is newer: keep it.
+      if (!this.photos.has(r.species)) this.photos.set(r.species, { thumb: URL.createObjectURL(r.thumb), full: URL.createObjectURL(r.full) });
+    }
+    let migrated = false;
+    for (const [id, entry] of Object.entries(this.entries) as [SpeciesId, JournalEntry][]) {
+      if (!entry.photo) continue;
+      if (!this.photos.has(id)) {
+        const blob = await dataUrlToBlob(entry.photo);
+        const saved = await put(JOURNAL_PHOTOS, { species: id, full: blob, thumb: blob, takenAt: entry.takenAt } satisfies StoredPhoto);
+        if (!saved) continue; // keep it inline for now; try again next time
+        const url = URL.createObjectURL(blob);
+        this.photos.set(id, { thumb: url, full: url });
+      }
+      delete entry.photo;
+      migrated = true;
+    }
+    if (migrated) this.save();
+    else for (const l of this.listeners) l();
   }
 
   private save(): void {

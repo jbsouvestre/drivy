@@ -1,12 +1,21 @@
 import type { RecordResult } from '../safari/Journal';
+import type { Snapshot } from '../safari/snapshot';
 import { behaviorLabel, species, type SpeciesId } from '../safari/species';
 
-const TOAST_TIME = 3600;
+/** How long the polaroid stays up after a shot: the window for keeping it in the photobook. */
+const TOAST_TIME = 5000;
+/** After keeping a photo, the polaroid lingers at least this long, to show it worked. */
+const KEPT_LINGER = 1200;
+/** Keep-ring circumference (r = 15). */
+const RING = 2 * Math.PI * 15;
 
 export interface ToastInfo {
   /** Photo requests this shot completed (their texts). */
   requests?: string[];
+  /** URL of the thumbnail to show. */
   image: string;
+  /** The photo itself, in case it's kept. */
+  snapshot: Snapshot;
   species: SpeciesId | null;
   stars: number;
   behaviors: string[];
@@ -22,6 +31,34 @@ export class PhotoHud {
   private readonly flash = el('#flash');
   private readonly toast = el('#photo-toast');
   private toastTimer = 0;
+  private hideAt = 0;
+  /** The photo on show, while it can still be kept (null once kept or gone). */
+  private keepable: ToastInfo | null = null;
+  /** Called when the player keeps the photo on show. */
+  onKeep: ((info: ToastInfo) => void) | null = null;
+
+  constructor() {
+    // The keep button is also clickable (when the mouse isn't captured by the camera).
+    this.toast.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.keep')) this.keep();
+    });
+  }
+
+  /** Keep the photo on show in the photobook. Returns false if there's nothing to keep. */
+  keep(): boolean {
+    const info = this.keepable;
+    if (!info) return false;
+    this.keepable = null;
+    const button = this.toast.querySelector<HTMLElement>('.keep');
+    button?.classList.add('kept');
+    const label = this.toast.querySelector<HTMLElement>('.keep-label');
+    if (label) label.textContent = '✓ Kept in photobook';
+    // Linger a little so the "kept" state is seen.
+    const remaining = this.hideAt - performance.now();
+    if (remaining < KEPT_LINGER) this.hideIn(KEPT_LINGER);
+    this.onKeep?.(info);
+    return true;
+  }
 
   show(on: boolean): void {
     this.viewfinder.classList.toggle('hidden', !on);
@@ -78,12 +115,31 @@ export class PhotoHud {
           <span class="stars">${sp ? starText(info.stars) : ''}</span>
         </div>
         <div class="pl-tags">${sp ? tags.join('') : '<span class="tag">No animals in this one</span>'}</div>
+        <button class="keep" type="button" style="--keep-time: ${TOAST_TIME}ms" title="Keep this photo in the photobook">
+          <span class="keep-key">
+            <svg viewBox="0 0 36 36" aria-hidden="true">
+              <circle class="keep-track" cx="18" cy="18" r="15" />
+              <circle class="keep-ring" cx="18" cy="18" r="15" stroke-dasharray="${RING.toFixed(2)}" />
+            </svg>
+            <kbd>F</kbd>
+          </span>
+          <span class="keep-label">Keep in photobook</span>
+        </button>
       </div>`;
+    this.keepable = info;
     this.toast.classList.remove('show');
     void this.toast.offsetWidth;
     this.toast.classList.add('show');
+    this.hideIn(TOAST_TIME);
+  }
+
+  private hideIn(ms: number): void {
     window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.toast.classList.remove('show'), TOAST_TIME);
+    this.hideAt = performance.now() + ms;
+    this.toastTimer = window.setTimeout(() => {
+      this.toast.classList.remove('show');
+      this.keepable = null; // gone: too late to keep it
+    }, ms);
   }
 }
 

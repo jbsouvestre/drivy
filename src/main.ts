@@ -20,6 +20,8 @@ import { setNightGlow } from './world/props';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
 import { Journal, type RecordResult } from './safari/Journal';
+import { Photobook } from './safari/Photobook';
+import { encodeFrame, grabFrame, type Frame } from './safari/snapshot';
 import { PhotoMode } from './safari/PhotoMode';
 import { Requests } from './safari/Requests';
 import { scoreShot } from './safari/scoring';
@@ -56,9 +58,6 @@ const BUBBLE_LINGER = 0.35;
 const PHOTO_CREEP = 0.15;
 /** How often the viewfinder re-checks what's in frame. */
 const HINT_INTERVAL = 0.25;
-/** Captured photo size (4:3). */
-const PHOTO_WIDTH = 480;
-const PHOTO_HEIGHT = 360;
 
 // ---------- renderer & scene ----------
 
@@ -195,7 +194,8 @@ const biomeBanner = document.querySelector<HTMLElement>('#biome-banner')!;
 const honkBubble = document.querySelector<HTMLDivElement>('#honk')!;
 const horn = new Horn();
 const requests = new Requests(journal);
-const journalView = new JournalView(journal, requests);
+const photobook = new Photobook();
+const journalView = new JournalView(journal, requests, photobook);
 const postCount = document.querySelector<HTMLElement>('#hud-post-count')!;
 const showPostCount = () => (postCount.textContent = String(requests.list.length));
 requests.onChange(showPostCount);
@@ -336,6 +336,8 @@ window.addEventListener('keydown', (e) => {
     photo.requestShot();
   } else if (e.code === 'KeyQ' && !e.repeat && playing && !dialogOpen) {
     chime();
+  } else if (e.code === 'KeyF' && !e.repeat && playing && !dialogOpen) {
+    photoHud.keep(); // keep the photo on show (if any) in the photobook
   } else if (e.code === 'KeyM' && !e.repeat) {
     showMuted(ambience.toggleMute());
   } else if (e.code === 'KeyL' && !e.repeat && playing && !dialogOpen) {
@@ -369,6 +371,20 @@ const VISITED_KEY = 'drivy.visited';
   count('visit', 1, { returning, touchOnly: unsupportedPlatform });
   gauge('journal.species_found', journal.progress().species);
 }
+
+// Keeping a snapshot (F while its polaroid is up) puts it in the photobook.
+photoHud.onKeep = (info) => {
+  void photobook.add({
+    snapshot: info.snapshot,
+    takenAt: Date.now(),
+    clock: shownClock,
+    biome: currentBiome ?? world.dominantBiome(car.position.x, car.position.z),
+    seed: currentSeed,
+    subject: info.species,
+    stars: info.stars,
+  });
+  count('photobook.kept', 1, { subject: info.species ?? 'none' });
+};
 
 function trackPhoto(species: string | null, stars: number, result: RecordResult | null, requestsDone: number): void {
   count('photo.taken', 1, { subject: species ?? 'none', stars });
@@ -433,21 +449,6 @@ function lighting() {
 }
 
 /** Grab the frame that was just rendered as a 4:3 JPEG (call right after rendering). */
-function capturePhoto(): string {
-  const src = renderer.domElement;
-  const out = document.createElement('canvas');
-  out.width = PHOTO_WIDTH;
-  out.height = PHOTO_HEIGHT;
-  const aspect = PHOTO_WIDTH / PHOTO_HEIGHT;
-  let w = src.width;
-  let h = w / aspect;
-  if (h > src.height) {
-    h = src.height;
-    w = h * aspect;
-  }
-  out.getContext('2d')!.drawImage(src, (src.width - w) / 2, (src.height - h) / 2, w, h, 0, 0, PHOTO_WIDTH, PHOTO_HEIGHT);
-  return out.toDataURL('image/jpeg', 0.85);
-}
 
 /** Live viewfinder hint: what's in frame and how many stars it would get. */
 function updatePhotoHint(dt: number): void {
@@ -660,18 +661,36 @@ function frame(timestamp: number): void {
   const shot = photo.takeShot() ? scoreShot(photo.camera, collectSubjects(), world.group, lighting()) : null;
   renderer.render(scene, photo.showing ? photo.camera : rig.camera);
   if (shot) {
-    const image = capturePhoto();
+    // Grab the pixels now (before the frame is presented), encode them off the render path.
+    const grabbed = grabFrame(renderer.domElement);
     playShutter();
     photoHud.shutter();
-    const sp = shot.subject?.species ?? null;
-    const result = sp ? journal.record({ species: sp, stars: shot.stars, behaviors: shot.behaviors, image, seed: currentSeed }) : null;
-    const light = lighting();
-    const done = sp ? requests.submit({ species: sp, stars: shot.stars, behaviors: shot.behaviors, ...light }) : [];
-    trackPhoto(sp, shot.stars, result, done.length);
-    photoHud.showPhoto({
-      requests: done.map((r) => r.text), image, species: sp, stars: shot.stars, behaviors: shot.behaviors, result });
+    void develop(shot, grabbed, lighting(), currentSeed);
   }
   requestAnimationFrame(frame);
+}
+
+/** The polaroid's thumbnail URL, released when the next photo replaces it. */
+let previewUrl: string | null = null;
+
+/** Encode a snapped photo, file it in the journal and requests, and show the polaroid. */
+async function develop(shot: NonNullable<ReturnType<typeof scoreShot>>, grabbed: Frame, light: ReturnType<typeof lighting>, seed: string): Promise<void> {
+  const snapshot = await encodeFrame(grabbed);
+  const sp = shot.subject?.species ?? null;
+  const result = sp ? journal.record({ species: sp, stars: shot.stars, behaviors: shot.behaviors, snapshot, seed }) : null;
+  const done = sp ? requests.submit({ species: sp, stars: shot.stars, behaviors: shot.behaviors, ...light }) : [];
+  trackPhoto(sp, shot.stars, result, done.length);
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(snapshot.thumb);
+  photoHud.showPhoto({
+    requests: done.map((r) => r.text),
+    image: previewUrl,
+    snapshot,
+    species: sp,
+    stars: shot.stars,
+    behaviors: shot.behaviors,
+    result,
+  });
 }
 requestAnimationFrame(frame);
 
