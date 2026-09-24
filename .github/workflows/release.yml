@@ -13,6 +13,7 @@ permissions:
   contents: write # create the release
   pages: write # deploy to Pages
   id-token: write # required by deploy-pages
+  actions: read # required by deploy-pages (v4+)
 
 # Never run two deployments at once; don't cancel one that's in progress.
 concurrency:
@@ -25,11 +26,11 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version-file: .nvmrc # Node 24 LTS
           cache: npm
 
       - name: Read game version
@@ -50,12 +51,12 @@ jobs:
       - name: Zip the build
         run: cd dist && zip -r "../drivy-v${{ steps.version.outputs.version }}.zip" .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-zip
           path: drivy-v${{ steps.version.outputs.version }}.zip
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -64,7 +65,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-zip
 
@@ -85,4 +86,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
