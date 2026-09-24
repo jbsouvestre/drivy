@@ -122,6 +122,7 @@ export class PhotoHud {
               <circle class="keep-ring" cx="18" cy="18" r="15" stroke-dasharray="${RING.toFixed(2)}" />
             </svg>
             <kbd>F</kbd>
+            <span class="keep-icon" aria-hidden="true">♥</span>
           </span>
           <span class="keep-label">Keep in photobook</span>
         </button>

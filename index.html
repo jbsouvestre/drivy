@@ -3,13 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
     <title>Drivy</title>
     <meta name="description" content="A tiny car in a big soft world. Drive through pastel biomes and photograph shy wildlife. Plays right in your browser." />
     <meta name="theme-color" content="#ff9aa2" />
+
+    <!-- Install to the home screen: opens fullscreen, without the browser's bars (iPhone included). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Drivy" />
 
     <!-- Link previews (WhatsApp, iMessage, Slack, Discord, X…). Crawlers need absolute URLs. -->
     <meta property="og:type" content="website" />
@@ -30,25 +38,6 @@
   </head>
   <body>
     <canvas id="game"></canvas>
-
-    <!-- Shown on touch-only devices (phones, tablets): the game needs a keyboard for now. -->
-    <div id="platform-banner" class="platform-banner" role="status" hidden>
-      <svg class="sad-face" viewBox="33 38 54 24" aria-hidden="true">
-        <ellipse class="cheek" cx="40" cy="52" rx="5" ry="3" />
-        <ellipse class="cheek" cx="80" cy="52" rx="5" ry="3" />
-        <circle class="fill" cx="48" cy="45" r="3.8" />
-        <circle class="fill" cx="72" cy="45" r="3.8" />
-        <circle class="shine" cx="49.3" cy="43.6" r="1.3" />
-        <circle class="shine" cx="73.3" cy="43.6" r="1.3" />
-        <path class="line" d="M53 59 q7 -6 14 0" />
-        <path class="tear" d="M76.5 50 q-2.2 3.6 0 5.2 q2.2 -1.6 0 -5.2 z" />
-      </svg>
-      <p>
-        <strong>Drivy doesn't work on phones and tablets yet.</strong>
-        It needs a keyboard to drive: come back on a computer!
-      </p>
-      <button id="platform-banner-close" class="banner-close" type="button" aria-label="Close" title="Close">×</button>
-    </div>
 
     <div id="splash" class="splash">
       <div class="splash-card">
@@ -81,9 +70,13 @@
         <button id="hud-help" class="pill pill-btn" type="button"><kbd>H</kbd> controls</button>
         <button id="hud-journal" class="pill pill-btn" type="button"><kbd>J</kbd> journal</button>
         <button id="hud-mute" class="pill pill-btn" type="button" title="Nature sounds (M)">🔊</button>
+        <button id="hud-fullscreen" class="pill pill-btn fullscreen-btn" type="button" aria-label="Fullscreen" title="Fullscreen" hidden>
+          <svg class="fs-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" /></svg>
+          <svg class="fs-exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" /></svg>
+        </button>
         <button id="hud-post" class="pill pill-btn" type="button" title="Photo requests from Pelly (in the journal)">📮 <span id="hud-post-count">3</span></button>
-        <span class="pill subtle photo-hint"><kbd>C</kbd> camera</span>
-        <span class="pill subtle"><kbd>Esc</kbd> menu</span>
+        <button id="hud-camera" class="pill pill-btn subtle photo-hint" type="button"><kbd>C</kbd> camera</button>
+        <button id="hud-menu" class="pill pill-btn subtle" type="button"><kbd>Esc</kbd> menu</button>
         <span id="hud-biome" class="pill biome-pill">🌾 Meadow</span>
         <span class="pill clock" title="Hold T to fast-forward time"><span id="clock-icon">☀️</span> <strong id="clock-time">08:00</strong></span>
       </div>

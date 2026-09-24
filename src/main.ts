@@ -6,6 +6,7 @@ import { audioContext, playBells, playChime, playEcho, playFoghorn, playLaunch, 
 import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
+import { StickDriver } from './game/StickDriver';
 import { SkidMarks } from './game/SkidMarks';
 import { warmUpShaders } from './game/warmup';
 import { Splashes } from './game/Splashes';
@@ -29,6 +30,7 @@ import { SPECIES, type Subject } from './safari/species';
 import { JournalView } from './ui/JournalView';
 import { PhotoHud } from './ui/PhotoHud';
 import { Speedometer } from './ui/Speedometer';
+import { TouchControls } from './ui/TouchControls';
 import { Birds } from './wildlife/Birds';
 import { Dragonflies } from './wildlife/Dragonflies';
 import { Ducks } from './wildlife/Ducks';
@@ -67,7 +69,10 @@ const HINT_INTERVAL = 0.25;
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 // Capped at 1.5: on big Retina windows full 2× resolution halves the frame rate for little visible gain.
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+/** Phones and tablets (touch only), or modest CPUs: render lighter to keep the frame rate up. */
+const touchOnly = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
+const lowPower = touchOnly || (navigator.hardwareConcurrency ?? 8) <= 4;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, lowPower ? 1.25 : 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -81,7 +86,7 @@ scene.add(hemi);
 // Plays the sun by day and the moon by night (see DayNight).
 const sun = new THREE.DirectionalLight('#fff4e0', 1.9);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.setScalar(lowPower ? 1024 : 2048);
 sun.shadow.camera.left = -30;
 sun.shadow.camera.right = 30;
 sun.shadow.camera.top = 30;
@@ -163,30 +168,6 @@ const diceBtn = document.querySelector<HTMLButtonElement>('#seed-dice')!;
 const playBtn = document.querySelector<HTMLButtonElement>('#play')!;
 const speedo = new Speedometer(document.querySelector<HTMLElement>('#speedo')!);
 document.querySelector<HTMLElement>('#version')!.textContent = `v${__APP_VERSION__}`;
-/**
- * Touch-only devices (phones, tablets without a trackpad) can't drive yet: the game
- * needs a keyboard. They still see the game, with a banner explaining why.
- */
-const unsupportedPlatform = matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches;
-const platformBanner = document.querySelector<HTMLElement>('#platform-banner')!;
-/** Detection can be wrong: once closed, the banner stays closed on this browser. */
-const BANNER_CLOSED_KEY = 'drivy.platformBannerClosed';
-let bannerClosed = false;
-try {
-  bannerClosed = localStorage.getItem(BANNER_CLOSED_KEY) === '1';
-} catch {
-  // Storage blocked: show it (it can still be closed for this visit).
-}
-platformBanner.hidden = !unsupportedPlatform || bannerClosed;
-document.querySelector<HTMLButtonElement>('#platform-banner-close')!.addEventListener('click', () => {
-  platformBanner.hidden = true;
-  track('platform_banner_closed');
-  try {
-    localStorage.setItem(BANNER_CLOSED_KEY, '1');
-  } catch {
-    // Session-only.
-  }
-});
 const controlsDialog = document.querySelector<HTMLDialogElement>('#controls')!;
 const showControlsBtn = document.querySelector<HTMLButtonElement>('#show-controls')!;
 const hudHelpBtn = document.querySelector<HTMLButtonElement>('#hud-help')!;
@@ -204,6 +185,15 @@ const showPostCount = () => (postCount.textContent = String(requests.list.length
 requests.onChange(showPostCount);
 showPostCount();
 const photoHud = new PhotoHud();
+/** On-screen controls for phones and tablets (shown while playing, when the last input was a touch). */
+const touch = new TouchControls({
+  chime: () => chime(),
+  camera: () => setPhotoMode(!photo.active),
+  shutter: () => photo.requestShot(),
+  look: (dx, dy) => photo.look(dx * 1.6, dy * 1.6),
+  zoom: (scale) => photo.zoomBy(scale),
+});
+const stickDriver = new StickDriver();
 photo.onLockChange((locked) => photoHud.setLocked(locked));
 
 let playing = false;
@@ -247,16 +237,19 @@ function startGame(): void {
   hud.classList.remove('hidden');
   rig.mode = 'follow';
   playing = true;
+  touch.setMode('drive');
   // Drop focus from the menu (including the seed box, if Enter started the game) so keys drive the car.
   (document.activeElement as HTMLElement | null)?.blur();
 }
 
 function setPhotoMode(on: boolean): void {
-  if (on) photo.enter();
+  // With touch, look by dragging: don't grab the (absent) mouse.
+  if (on) photo.enter(!touch.active);
   else photo.exit();
   photoHud.show(on);
-  photoHud.setLocked(photo.locked);
+  photoHud.setLocked(photo.locked || touch.active);
   car.speedLimit = on ? PHOTO_CREEP : 1;
+  if (playing) touch.setMode(on ? 'photo' : 'drive');
 }
 
 /** Dialogs need the mouse back, so leave pointer lock (photo mode itself stays on). */
@@ -268,6 +261,7 @@ function openDialog(toggle: () => void): void {
 function showMenu(): void {
   setPhotoMode(false);
   playing = false;
+  touch.setMode('hidden');
   rig.mode = 'menu';
   splash.classList.remove('hidden');
   hud.classList.add('hidden');
@@ -315,6 +309,48 @@ document.querySelector<HTMLButtonElement>('#hud-post')!.addEventListener('click'
 hudJournalBtn.addEventListener('click', () => {
   hudJournalBtn.blur();
   journalView.toggle();
+});
+/**
+ * Fullscreen, to get rid of the phone browser's address bar. Offered on touch
+ * where the browser allows it (Android, iPad; iPhone Safari doesn't for pages).
+ */
+type WebkitDocument = Document & {
+  webkitFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => void;
+};
+type WebkitElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+const fsDoc = document as WebkitDocument;
+const fullscreenBtn = document.querySelector<HTMLButtonElement>('#hud-fullscreen')!;
+fullscreenBtn.hidden = !(document.fullscreenEnabled || fsDoc.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement ?? fsDoc.webkitFullscreenElement);
+fullscreenBtn.addEventListener('click', () => {
+  fullscreenBtn.blur();
+  const root = document.documentElement as WebkitElement;
+  if (isFullscreen()) {
+    if (document.exitFullscreen) void document.exitFullscreen().catch(() => {});
+    else fsDoc.webkitExitFullscreen?.();
+  } else if (root.requestFullscreen) {
+    void root.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  } else {
+    root.webkitRequestFullscreen?.();
+  }
+});
+for (const type of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(type, () => {
+    const on = isFullscreen();
+    fullscreenBtn.classList.toggle('on', on);
+    fullscreenBtn.title = fullscreenBtn.ariaLabel = on ? 'Exit fullscreen' : 'Fullscreen';
+  });
+}
+
+document.querySelector<HTMLButtonElement>('#hud-camera')!.addEventListener('click', (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  if (playing) setPhotoMode(!photo.active);
+});
+document.querySelector<HTMLButtonElement>('#hud-menu')!.addEventListener('click', (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  if (playing) showMenu();
 });
 hudHelpBtn.addEventListener('click', () => {
   hudHelpBtn.blur();
@@ -371,7 +407,7 @@ const VISITED_KEY = 'drivy.visited';
   } catch {
     // Storage blocked: count it as a first visit.
   }
-  track('game_loaded', { returning, touch_only: unsupportedPlatform, species_found: journal.progress().species });
+  track('game_loaded', { returning, touch_only: touchOnly, species_found: journal.progress().species });
 }
 
 // Keeping a snapshot (F while its polaroid is up) puts it in the photobook.
@@ -505,6 +541,20 @@ function updateBiome(dt: number): void {
   }
 }
 
+/** This frame's driving input: the keyboard, or the touch joystick when it's held. */
+function currentDrive(): DriveInput {
+  if (!playing) return IDLE;
+  const stick = touch.stick;
+  if (stick.active) {
+    // In photo mode the view looks out of the car, so the stick is car-relative: up creeps forward.
+    if (photo.active) return { throttle: stick.y, steer: -stick.x, handbrake: false };
+    return stickDriver.drive(stick.x, stick.y, car, touch.drift);
+  }
+  // In photo mode Space is the shutter, not the handbrake.
+  if (photo.active) return { throttle: input.throttle, steer: input.steer, handbrake: false };
+  return { throttle: input.throttle, steer: input.steer, handbrake: input.handbrake || touch.drift };
+}
+
 /** What the animals can sense about the car this frame. */
 const presence: CarPresence = {
   position: car.position,
@@ -572,7 +622,7 @@ function frame(timestamp: number): void {
   const dt = paused ? 0 : Math.min(rawDt, 1 / 20);
   session.tick(rawDt, playing && !paused);
 
-  const honking = playing && !paused && input.honk;
+  const honking = playing && !paused && (input.honk || touch.honk);
   chimeCooldown = Math.max(0, chimeCooldown - dt);
   presence.speed = playing ? car.velocity.length() : 0;
   presence.difficulty = world.difficultyAt(car.position.x, car.position.z);
@@ -596,9 +646,7 @@ function frame(timestamp: number): void {
   }
 
   if (!paused) {
-    // In photo mode Space is the shutter, not the handbrake.
-    const drive: DriveInput = !playing ? IDLE : photo.active ? { throttle: input.throttle, steer: input.steer, handbrake: false } : input;
-    car.update(dt, drive);
+    car.update(dt, currentDrive());
     world.collidersNear(car.position.x, car.position.z, 2, nearby);
     for (const hit of car.resolveCollisions(nearby)) {
       world.bump(hit.collider, hit.dirX, hit.dirZ, hit.strength);

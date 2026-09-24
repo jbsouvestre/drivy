@@ -38,18 +38,14 @@ export class PhotoMode {
     this.camera = new THREE.PerspectiveCamera(FOV_WIDE, window.innerWidth / window.innerHeight, 0.2, 130);
 
     document.addEventListener('mousemove', (e) => {
-      if (!this.active || !this.locked) return;
-      // Look slower when zoomed in, so aiming stays precise.
-      const k = LOOK_SPEED * (this.fov / FOV_WIDE);
-      this.yaw -= e.movementX * k;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - e.movementY * k, PITCH_MIN, PITCH_MAX);
+      if (this.locked) this.look(e.movementX, e.movementY);
     });
     canvas.addEventListener(
       'wheel',
       (e) => {
         if (!this.active) return;
         e.preventDefault();
-        this.fovTarget = THREE.MathUtils.clamp(this.fovTarget * Math.exp(e.deltaY * 0.0012), FOV_TELE, FOV_WIDE);
+        this.zoomBy(Math.exp(-e.deltaY * 0.0012));
       },
       { passive: false },
     );
@@ -61,6 +57,21 @@ export class PhotoMode {
     document.addEventListener('pointerlockchange', () => {
       for (const l of this.lockListeners) l(this.locked);
     });
+  }
+
+  /** Turn the view by a mouse movement or a finger drag (in pixels). */
+  look(dx: number, dy: number): void {
+    if (!this.active) return;
+    // Look slower when zoomed in, so aiming stays precise.
+    const k = LOOK_SPEED * (this.fov / FOV_WIDE);
+    this.yaw -= dx * k;
+    this.pitch = THREE.MathUtils.clamp(this.pitch - dy * k, PITCH_MIN, PITCH_MAX);
+  }
+
+  /** Zoom by a factor (> 1 zooms in), e.g. from the scroll wheel or a pinch. */
+  zoomBy(factor: number): void {
+    if (!this.active) return;
+    this.fovTarget = THREE.MathUtils.clamp(this.fovTarget / factor, FOV_TELE, FOV_WIDE);
   }
 
   get locked(): boolean {
@@ -86,13 +97,14 @@ export class PhotoMode {
     this.lockListeners.add(listener);
   }
 
-  enter(): void {
+  /** Glide into the photo view; `capturePointer` grabs the mouse for looking (not wanted with touch). */
+  enter(capturePointer = true): void {
     if (this.active) return;
     this.active = true;
     this.yaw = 0;
     this.pitch = -0.06;
     this.fovTarget = FOV_WIDE;
-    this.lockPointer();
+    if (capturePointer) this.lockPointer();
   }
 
   exit(): void {

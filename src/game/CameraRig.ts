@@ -19,19 +19,22 @@ export class CameraRig {
   private orbit = 0;
   private trauma = 0;
   private time = 0;
+  /** The follow offset, pulled back on tall (portrait) screens so they still see around the car. */
+  private readonly offset = FOLLOW_OFFSET.clone();
 
   constructor(aspect: number) {
     // Far plane just past the fog (~110): nothing beyond it can be seen anyway.
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.5, 130);
-    this.base.copy(FOLLOW_OFFSET);
-    this.camera.position.copy(FOLLOW_OFFSET);
+    this.resize(aspect);
+    this.base.copy(this.offset);
+    this.camera.position.copy(this.offset);
     this.camera.lookAt(0, 0, 0);
   }
 
   /** Jump straight to the target without easing. */
   snap(target: THREE.Vector3): void {
     this.focus.copy(target);
-    this.base.copy(target).add(FOLLOW_OFFSET);
+    this.base.copy(target).add(this.offset);
     this.camera.position.copy(this.base);
     this.camera.lookAt(this.focus);
   }
@@ -56,7 +59,7 @@ export class CameraRig {
       // Look slightly ahead of where the car is going.
       this.desired.copy(target).addScaledVector(velocity, LOOK_AHEAD);
       this.focus.lerp(this.desired, Math.min(1, 4 * dt));
-      this.desired.copy(this.focus).add(FOLLOW_OFFSET);
+      this.desired.copy(this.focus).add(this.offset);
       this.base.lerp(this.desired, Math.min(1, 5 * dt));
     }
 
@@ -75,5 +78,7 @@ export class CameraRig {
   resize(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    // Portrait: back off so the narrow view still shows about as much sideways.
+    this.offset.copy(FOLLOW_OFFSET).multiplyScalar(aspect < 1 ? 1 / Math.sqrt(aspect) : 1);
   }
 }

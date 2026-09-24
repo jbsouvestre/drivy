@@ -1,0 +1,17 @@
+{
+  "name": "Drivy",
+  "short_name": "Drivy",
+  "description": "A tiny car in a big soft world. Drive through pastel biomes and photograph shy wildlife.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#fde4ec",
+  "theme_color": "#ff9aa2",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
