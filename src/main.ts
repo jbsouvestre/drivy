@@ -10,6 +10,12 @@ import { SkidMarks } from './game/SkidMarks';
 import { warmUpShaders } from './game/warmup';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
+
+// Error reporting, live site only. When no DSN was built in, this whole branch
+// (and the Sentry chunk) is dropped from the bundle.
+if (__SENTRY_DSN__ && window.location.hostname === 'jbsouvestre.com') {
+  void import('./sentry').then((m) => m.initSentry(__SENTRY_DSN__));
+}
 import type { Collider } from './world/props';
 import { BIOMES, biome, type BiomeId } from './world/biomes';
 import { DayNight } from './world/DayNight';

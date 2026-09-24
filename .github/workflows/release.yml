@@ -48,8 +48,8 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Public Sentry loader key (a repo variable, not a secret: it ships in the page anyway).
-          SENTRY_LOADER_KEY: ${{ vars.SENTRY_LOADER_KEY }}
+          # Sentry DSN (stored as a repo secret; note it still ends up in the shipped JS).
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
       - name: Zip the build
         run: cd dist && zip -r "../drivy-v${{ steps.version.outputs.version }}.zip" .
