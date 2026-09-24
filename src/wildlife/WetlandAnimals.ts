@@ -100,6 +100,8 @@ export class WetlandAnimals {
   private readonly animals: Animal[] = [];
   private manageTimer = 0;
   private focus = new THREE.Vector3();
+  /** 0 clear → 1 shower: frogs come out and sing in the rain. */
+  private rain = 0;
 
   constructor(
     private readonly world: World,
@@ -143,8 +145,9 @@ export class WetlandAnimals {
     }
   }
 
-  update(dt: number, focus: THREE.Vector3, car: CarPresence): void {
+  update(dt: number, focus: THREE.Vector3, car: CarPresence, rain = 0): void {
     this.focus.copy(focus);
+    this.rain = rain;
     this.manageTimer -= dt;
     if (this.manageTimer <= 0) {
       this.manageTimer = 1;
@@ -207,7 +210,8 @@ export class WetlandAnimals {
 
     for (const kind of Object.keys(KINDS) as Kind[]) {
       const count = this.animals.filter((a) => a.kind === kind && a.leaving < 0).length;
-      if (count >= KINDS[kind].max) continue;
+      const max = KINDS[kind].max + (kind === 'frog' ? Math.round(this.rain * 5) : 0);
+      if (count >= max) continue;
       if (kind === 'frog') this.spawnFrog(focus);
       else if (kind === 'heron') this.spawnIn(kind, focus, 0.1, 0.5);
       else this.spawnIn(kind, focus, 0.7, 99);
@@ -401,7 +405,8 @@ export class WetlandAnimals {
     }
     a.croakTimer -= dt;
     if (a.croakTimer <= 0) {
-      a.croakTimer = 5 + Math.random() * 10;
+      // A rain chorus: much chattier in a shower.
+      a.croakTimer = (5 + Math.random() * 10) * (1 - 0.7 * this.rain);
       this.croak(a);
     }
     if (a.stateTime >= a.stateDuration) {

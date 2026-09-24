@@ -4,6 +4,8 @@ import { species, type Subject } from './species';
 export interface Lighting {
   goldenHour: boolean;
   night: boolean;
+  /** A shower is on: rain-only behaviours can be captured. */
+  rain: boolean;
 }
 
 export interface Shot {
@@ -55,6 +57,7 @@ export function scoreShot(
       else if (sp.rare) bonus += 0.15;
       if (light.goldenHour) bonus += 0.08;
       if (light.night) bonus += 0.05;
+      if (light.rain) bonus += 0.05;
       const company = framed.filter((o) => o !== f && o.subject.species === f.subject.species).length;
       bonus += Math.min(0.1, company * 0.04);
     }
@@ -67,13 +70,14 @@ export function scoreShot(
 
   const subject = best!.subject;
   const stars = STAR_THRESHOLDS.filter((t) => bestTotal >= t).length;
-  const behaviors = stars > 0 ? derivedBehaviors(subject, framed) : [];
+  const behaviors = stars > 0 ? derivedBehaviors(subject, framed, light) : [];
   return { subject: stars > 0 ? subject : null, stars, score: bestTotal, behaviors };
 }
 
 /** The subject's own behaviour plus group behaviours visible in the frame. */
-function derivedBehaviors(subject: Subject, framed: Framed[]): string[] {
+function derivedBehaviors(subject: Subject, framed: Framed[], light: Lighting): string[] {
   const out = [subject.behavior];
+  if (light.rain && species(subject.species).behaviors.some((b) => b.id === 'rain')) out.push('rain');
   const count = (id: string) => framed.filter((f) => f.subject.species === id).length;
   if (subject.species === 'duck' && count('duckling') >= 2) out.push('family');
   if (subject.species === 'firefly' && count('firefly') >= 8) out.push('swarm');

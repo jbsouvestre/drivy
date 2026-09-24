@@ -38,6 +38,8 @@
         <span class="pill">seed · <strong id="hud-seed"></strong></span>
         <button id="hud-help" class="pill pill-btn" type="button"><kbd>H</kbd> controls</button>
         <button id="hud-journal" class="pill pill-btn" type="button"><kbd>J</kbd> journal</button>
+        <button id="hud-mute" class="pill pill-btn" type="button" title="Nature sounds (M)">🔊</button>
+        <button id="hud-post" class="pill pill-btn" type="button" title="Photo requests from Pelly (in the journal)">📮 <span id="hud-post-count">3</span></button>
         <span class="pill subtle photo-hint"><kbd>C</kbd> camera</span>
         <span class="pill subtle"><kbd>Esc</kbd> menu</span>
         <span id="hud-biome" class="pill biome-pill">🌾 Meadow</span>
@@ -109,6 +111,10 @@
           <span class="what">Fast-forward time <small>hold to speed up the day</small></span>
         </li>
         <li>
+          <span class="keys"><kbd>M</kbd></span>
+          <span class="what">Nature sounds <small>mute / unmute the ambience</small></span>
+        </li>
+        <li>
           <span class="keys"><kbd>E</kbd></span>
           <span class="what">Honk! <small>hold for a longer toot</small></span>
         </li>
@@ -136,6 +142,7 @@
         </div>
         <form method="dialog"><button class="close-btn" type="submit" aria-label="Close journal">✕</button></form>
       </header>
+      <section class="post" aria-label="Photo requests"></section>
       <div class="journal-grid"></div>
     </dialog>
 

@@ -3,19 +3,22 @@ import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
 import { audioContext, playChime, playShutter } from './game/audio';
+import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
 import { SkidMarks } from './game/SkidMarks';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
 import type { Collider } from './world/props';
-import { biome, type BiomeId } from './world/biomes';
+import { BIOMES, biome, type BiomeId } from './world/biomes';
 import { DayNight } from './world/DayNight';
+import { Weather } from './world/Weather';
 import { setNightGlow } from './world/props';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
 import { Journal } from './safari/Journal';
 import { PhotoMode } from './safari/PhotoMode';
+import { Requests } from './safari/Requests';
 import { scoreShot } from './safari/scoring';
 import type { Subject } from './safari/species';
 import { JournalView } from './ui/JournalView';
@@ -27,7 +30,7 @@ import { Ducks } from './wildlife/Ducks';
 import { Fireflies } from './wildlife/Fireflies';
 import { GroundAnimals } from './wildlife/GroundAnimals';
 import { Owls } from './wildlife/Owls';
-import { Drift, PETALS, SNOW, SPORES } from './wildlife/Petals';
+import { Drift, PETALS, RAIN, SNOW, SPORES } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
 import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
@@ -104,8 +107,31 @@ const fireflies = new Fireflies();
 const petals = new Drift(PETALS);
 const snowfall = new Drift(SNOW);
 const spores = new Drift(SPORES);
+const rainfall = new Drift(RAIN);
+// In the snowy hills a shower falls as a proper snowstorm instead of rain.
+const snowstorm = new Drift({ ...SNOW, count: 320, fall: 1.8, size: 0.5 });
+const weather = new Weather();
+const ambience = new Ambience();
+const ambienceState = {
+  biomes: Object.fromEntries(BIOMES.map((b) => [b.id, 0])) as Record<BiomeId, number>,
+  darkness: 0,
+  rain: 0,
+};
+let ambienceTimer = 0;
+
+/** Feed the soundscape: which biomes are around (sampled a few times a second), time of day, weather. */
+function updateAmbience(dt: number, active: boolean): void {
+  ambienceTimer -= dt;
+  if (ambienceTimer <= 0) {
+    ambienceTimer = 0.25;
+    for (const b of BIOMES) ambienceState.biomes[b.id] = world.biomeWeight(car.position.x, car.position.z, b.id);
+  }
+  ambienceState.darkness = dayNight.darkness;
+  ambienceState.rain = weather.rain;
+  ambience.update(dt, ambienceState, active);
+}
 const groundAnimals = new GroundAnimals(world);
-scene.add(birds.group, squirrels.group, owls.group, fireflies.points, petals.points, snowfall.points, spores.points, groundAnimals.group);
+scene.add(birds.group, squirrels.group, owls.group, fireflies.points, petals.points, snowfall.points, spores.points, rainfall.points, snowstorm.points, groundAnimals.group);
 
 const rig = new CameraRig(window.innerWidth / window.innerHeight);
 const input = new Input();
@@ -130,7 +156,12 @@ const biomePill = document.querySelector<HTMLElement>('#hud-biome')!;
 const biomeBanner = document.querySelector<HTMLElement>('#biome-banner')!;
 const honkBubble = document.querySelector<HTMLDivElement>('#honk')!;
 const horn = new Horn();
-const journalView = new JournalView(journal);
+const requests = new Requests(journal);
+const journalView = new JournalView(journal, requests);
+const postCount = document.querySelector<HTMLElement>('#hud-post-count')!;
+const showPostCount = () => (postCount.textContent = String(requests.list.length));
+requests.onChange(showPostCount);
+showPostCount();
 const photoHud = new PhotoHud();
 photo.onLockChange((locked) => photoHud.setLocked(locked));
 
@@ -221,6 +252,10 @@ function toggleControls(): void {
 showControlsBtn.addEventListener('click', toggleControls);
 document.querySelector('#show-journal')!.addEventListener('click', () => journalView.toggle());
 const hudJournalBtn = document.querySelector<HTMLButtonElement>('#hud-journal')!;
+document.querySelector<HTMLButtonElement>('#hud-post')!.addEventListener('click', (e) => {
+  (e.currentTarget as HTMLButtonElement).blur();
+  journalView.toggle();
+});
 hudJournalBtn.addEventListener('click', () => {
   hudJournalBtn.blur();
   journalView.toggle();
@@ -248,6 +283,8 @@ window.addEventListener('keydown', (e) => {
     photo.requestShot();
   } else if (e.code === 'KeyQ' && !e.repeat && playing && !dialogOpen) {
     chime();
+  } else if (e.code === 'KeyM' && !e.repeat) {
+    showMuted(ambience.toggleMute());
   } else if (e.code === 'KeyL' && !e.repeat && playing && !dialogOpen) {
     speedo.setHeadlights(car.toggleHeadlights());
   } else if (e.key === 'Escape' && playing && !dialogOpen) {
@@ -286,7 +323,7 @@ function updateNightfall(): void {
   if (clock !== shownClock) {
     shownClock = clock;
     clockTime.textContent = clock;
-    clockIcon.textContent = night ? '🌙' : '☀️';
+    clockIcon.textContent = weather.isRaining ? '🌧️' : night ? '🌙' : '☀️';
   }
 }
 
@@ -309,7 +346,7 @@ function collectSubjects(): Subject[] {
 
 function lighting() {
   const t = dayNight.time;
-  return { goldenHour: (t > 0.25 && t < 0.33) || (t > 0.68 && t < 0.76), night: dayNight.isNight };
+  return { goldenHour: (t > 0.25 && t < 0.33) || (t > 0.68 && t < 0.76), night: dayNight.isNight, rain: weather.isRaining };
 }
 
 /** Grab the frame that was just rendered as a 4:3 JPEG (call right after rendering). */
@@ -342,6 +379,18 @@ function updatePhotoHint(dt: number): void {
   photoHud.setHint(id, shot.stars, id ? !!journal.entry(id) : false);
 }
 
+const muteBtn = document.querySelector<HTMLButtonElement>('#hud-mute')!;
+/** Reflect the ambience mute state on the HUD button. */
+function showMuted(muted: boolean): void {
+  muteBtn.textContent = muted ? '🔇' : '🔊';
+  muteBtn.title = muted ? 'Nature sounds off (M)' : 'Nature sounds on (M)';
+}
+muteBtn.addEventListener('click', () => {
+  muteBtn.blur();
+  showMuted(ambience.toggleMute());
+});
+showMuted(ambience.muted);
+
 let currentBiome: BiomeId | null = null;
 let biomeTimer = 0;
 let bannerTimer = 0;
@@ -357,6 +406,7 @@ function updateBiome(dt: number): void {
   const def = biome(id);
   biomePill.textContent = `${def.emoji} ${def.name}`;
   if (playing && journal.visitBiome(id)) {
+    requests.refill(); // a new biome opens up new requests
     biomeBanner.innerHTML = `<span class="bb-emoji">${def.emoji}</span><strong>${def.name}</strong><small>New biome discovered! New animals to find.</small>`;
     biomeBanner.classList.add('show');
     window.clearTimeout(bannerTimer);
@@ -456,20 +506,27 @@ function frame(timestamp: number): void {
 
   world.update(car.position, dt);
   updateWater(dt);
+  // Ambience plays in the game and on the menu, and hushes while a dialog is open.
+  updateAmbience(dt, !paused);
   if (!paused) {
+    weather.update(dt);
+    dayNight.rain = weather.rain;
     dayNight.update(dt, playing && input.fastForward);
     updateNightfall();
     squirrels.update(dt, car.position, dayNight.isNight, presence);
     owls.update(dt, car.position, dayNight.darkness, presence);
     ducks.update(dt, car.position, dayNight.darkness, presence);
     groundAnimals.update(dt, car.position, dayNight.darkness, presence);
-    wetland.update(dt, car.position, presence);
+    wetland.update(dt, car.position, presence, weather.rain);
     dragonflies.update(dt, car.position, dayNight.darkness < 0.5);
     fireflies.update(dt, car.position, dayNight.darkness, world);
     const cx = car.position.x;
     const cz = car.position.z;
     petals.update(dt, car.position, world.biomeWeight(cx, cz, 'blossom'));
-    snowfall.update(dt, car.position, world.biomeWeight(cx, cz, 'snow'));
+    const snowy = world.biomeWeight(cx, cz, 'snow');
+    snowfall.update(dt, car.position, snowy);
+    snowstorm.update(dt, car.position, snowy * weather.rain);
+    rainfall.update(dt, car.position, (1 - snowy) * weather.rain);
     // Spores glow brighter after dark, along with the mushroom caps.
     spores.update(dt, car.position, world.biomeWeight(cx, cz, 'mushroom'), 0.45 + 0.55 * dayNight.darkness);
     setNightGlow(dayNight.darkness);
@@ -496,7 +553,10 @@ function frame(timestamp: number): void {
     photoHud.shutter();
     const sp = shot.subject?.species ?? null;
     const result = sp ? journal.record({ species: sp, stars: shot.stars, behaviors: shot.behaviors, image, seed: currentSeed }) : null;
-    photoHud.showPhoto({ image, species: sp, stars: shot.stars, behaviors: shot.behaviors, result });
+    const light = lighting();
+    const done = sp ? requests.submit({ species: sp, stars: shot.stars, behaviors: shot.behaviors, ...light }) : [];
+    photoHud.showPhoto({
+      requests: done.map((r) => r.text), image, species: sp, stars: shot.stars, behaviors: shot.behaviors, result });
   }
   requestAnimationFrame(frame);
 }

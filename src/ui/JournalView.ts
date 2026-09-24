@@ -1,4 +1,5 @@
 import type { Journal } from '../safari/Journal';
+import type { Requests } from '../safari/Requests';
 import { SPECIES, type Species } from '../safari/species';
 import { BIOMES } from '../world/biomes';
 import { starText } from './PhotoHud';
@@ -8,14 +9,21 @@ export class JournalView {
   readonly dialog: HTMLDialogElement;
   private readonly body: HTMLElement;
   private readonly progress: HTMLElement;
+  private readonly post: HTMLElement;
 
-  constructor(private readonly journal: Journal) {
+  constructor(
+    private readonly journal: Journal,
+    private readonly requests: Requests,
+  ) {
     this.dialog = document.querySelector<HTMLDialogElement>('#journal')!;
     this.body = this.dialog.querySelector<HTMLElement>('.journal-grid')!;
     this.progress = this.dialog.querySelector<HTMLElement>('.journal-progress')!;
-    journal.onChange(() => {
+    this.post = this.dialog.querySelector<HTMLElement>('.post')!;
+    const rerender = () => {
       if (this.dialog.open) this.render();
-    });
+    };
+    journal.onChange(rerender);
+    requests.onChange(rerender);
   }
 
   get open(): boolean {
@@ -33,6 +41,18 @@ export class JournalView {
   private render(): void {
     const p = this.journal.progress();
     this.progress.textContent = `${p.species} / ${p.speciesTotal} species · ${p.behaviors} / ${p.behaviorsTotal} behaviours`;
+
+    // Pelly's board of photo requests.
+    const items = this.requests.list.map((r) => `<li>${escapeHtml(r.text)}</li>`).join('');
+    this.post.innerHTML = `
+      <div class="post-head">
+        <span class="pelly" aria-hidden="true">📰</span>
+        <div>
+          <strong>The Pastel Post</strong>
+          <small>Requests from Pelly the pelican, editor · ${this.requests.done} delivered</small>
+        </div>
+      </div>
+      <ul class="post-list">${items || '<li>Nothing needed right now. Explore somewhere new!</li>'}</ul>`;
 
     // One section per biome; undiscovered biomes stay a mystery.
     this.body.innerHTML = BIOMES.map((biome) => {

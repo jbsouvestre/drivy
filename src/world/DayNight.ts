@@ -62,6 +62,8 @@ export class DayNight {
   readonly lightOffset = new THREE.Vector3();
 
   private readonly sky = new THREE.Color();
+  /** 0 clear → 1 full shower: softens the light and greys the sky a touch. */
+  rain = 0;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -104,13 +106,15 @@ export class DayNight {
     const f = smooth((this.time - a.t) / span);
 
     this.sky.lerpColors(a.sky, b.sky, f);
+    // Showers: a soft lilac-grey sky that still feels pastel.
+    if (this.rain > 0) this.sky.lerp(RAIN_SKY, this.rain * 0.55 * (1 - 0.6 * this.darkness));
     const fog = this.scene.fog as THREE.Fog;
     fog.color.copy(this.sky);
-    fog.far = lerp(a.fogFar, b.fogFar, f);
+    fog.far = lerp(a.fogFar, b.fogFar, f) * (1 - 0.25 * this.rain);
 
     this.hemi.color.lerpColors(a.hemiSky, b.hemiSky, f);
     this.hemi.groundColor.lerpColors(a.hemiGround, b.hemiGround, f);
-    this.hemi.intensity = lerp(a.hemi, b.hemi, f);
+    this.hemi.intensity = lerp(a.hemi, b.hemi, f) * (1 - 0.15 * this.rain);
     this.sun.color.lerpColors(a.sun, b.sun, f);
 
     // The sun arcs east → overhead → west; at night the moon takes the opposite arc.
@@ -125,9 +129,11 @@ export class DayNight {
       LIGHT_DISTANCE * 0.3,
     );
     // Fade the light out near the horizon so the sun→moon swap never pops the shadows.
-    this.sun.intensity = lerp(a.sunI, b.sunI, f) * smoothstepf(0, 0.18, elevation);
+    this.sun.intensity = lerp(a.sunI, b.sunI, f) * smoothstepf(0, 0.18, elevation) * (1 - 0.6 * this.rain);
   }
 }
+
+const RAIN_SKY = new THREE.Color('#c9c3d9');
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;

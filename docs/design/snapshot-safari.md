@@ -146,9 +146,15 @@ Extra animals in frame add a small "group shot" bonus.
      and **Mushroom Hollow** (giant mushrooms whose caps glow in their own colours at night, mushroom
      clusters, rising spores; snails that hide in their shells, sleepy badgers, legendary Glow Snail, night only).
    - Photo mode hides the car's shell once settled, so low, close animals aren't blocked by the roof.
-5. **Nice-to-haves.** Photo requests from a pelican editor, weather (rain → frogs, snow),
-   ambient music per biome, cosmetic unlocks from journal completion.
+5. ✅ **Nice-to-haves.**
+   - **Photo requests**: Pelly the pelican (The Pastel Post) keeps 3 optional requests on the board, drawn only
+     from discovered biomes; a matching photo completes one and a new one arrives. Shown in the journal and HUD (📮).
+   - **Weather**: clear spells and showers that fade in/out; rain streaks (a snowstorm in Snowdrop Hills), softer
+     greyer light, more frogs singing, and rain-only journal behaviours (frog, duck, snail, penguin).
+   - **Ambience only** (no music, as decided): synthesised wind, water and waves, rain, birdsong, crickets and
+     Mushroom Hollow chimes, crossfading with biome, time of day and weather. `M` mutes.
+   - Cosmetic unlocks: not built — the journal stays its own reward.
 
 ## Open questions
 
-- Per-biome music, or ambient sound only?
+- None right now.

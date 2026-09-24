@@ -8,7 +8,7 @@ export interface DriftStyle {
   fall: number;
   /** Side-to-side flutter strength. */
   flutter: number;
-  shape: 'petal' | 'dot';
+  shape: 'petal' | 'dot' | 'streak';
   /** Additive glow (for spores). */
   glow?: boolean;
 }
@@ -19,6 +19,9 @@ export const PETALS: DriftStyle = { count: 90, colors: ['#ffc8dd', '#ffafcc', '#
 export const SNOW: DriftStyle = { count: 160, colors: ['#ffffff', '#f2f4ff', '#eef8ff'], size: 0.45, fall: 1.1, flutter: 0.35, shape: 'dot' };
 /** Glowing spores rising lazily in Mushroom Hollow. */
 export const SPORES: DriftStyle = { count: 70, colors: ['#e6c8ff', '#c8f0ff', '#ffd6f0', '#fff3b0'], size: 0.3, fall: -0.35, flutter: 0.5, shape: 'dot', glow: true };
+
+/** Rain showers: quick pale streaks. */
+export const RAIN: DriftStyle = { count: 600, colors: ['#c9d6f5', '#d6dcf7', '#e4dcff'], size: 1.1, fall: 16, flutter: 0.05, shape: 'streak' };
 
 /** Particles live within this radius around the player, up to TOP above the ground. */
 const RADIUS = 22;
@@ -54,7 +57,7 @@ export class Drift {
 
     this.material = new THREE.PointsMaterial({
       size: style.size,
-      map: style.shape === 'petal' ? petalTexture() : dotTexture(),
+      map: style.shape === 'petal' ? petalTexture() : style.shape === 'streak' ? streakTexture() : dotTexture(),
       vertexColors: true,
       transparent: true,
       opacity: 0,
@@ -114,6 +117,22 @@ function petalTexture(): THREE.CanvasTexture {
   ctx.beginPath();
   ctx.ellipse(size / 2, size / 2, size * 0.42, size * 0.26, -0.6, 0, Math.PI * 2);
   ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** A thin vertical streak (rain). */
+function streakTexture(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createLinearGradient(0, 0, 0, size);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(1, 'rgba(255,255,255,0.9)');
+  ctx.fillStyle = g;
+  ctx.fillRect(size / 2 - 2, 0, 4, size);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;

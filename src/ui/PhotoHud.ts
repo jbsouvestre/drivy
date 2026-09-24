@@ -4,6 +4,8 @@ import { behaviorLabel, species, type SpeciesId } from '../safari/species';
 const TOAST_TIME = 3600;
 
 export interface ToastInfo {
+  /** Photo requests this shot completed (their texts). */
+  requests?: string[];
   image: string;
   species: SpeciesId | null;
   stars: number;
@@ -59,6 +61,7 @@ export class PhotoHud {
     const sp = info.species ? species(info.species) : null;
     const tags: string[] = [];
     if (sp?.legendary) tags.push(`<span class="tag legendary">✨ Legendary!</span>`);
+    for (let i = 0; i < (info.requests?.length ?? 0); i++) tags.push(`<span class="tag post">📮 Request done!</span>`);
     if (info.result?.newSpecies) tags.push(`<span class="tag new">New species!</span>`);
     else if (info.result?.newBest) tags.push(`<span class="tag new">New best!</span>`);
     if (sp) {

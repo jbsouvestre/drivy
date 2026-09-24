@@ -78,13 +78,14 @@ export interface Subject {
 const b = (id: string, label: string): Behavior => ({ id, label });
 
 const BIRD_BEHAVIORS = [b('flying', 'Flying'), b('gliding', 'Gliding'), b('startled', 'Startled')];
-const DUCK_BEHAVIORS = [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
+// 'rain' behaviours can only be photographed during a shower (see scoring).
+const DUCK_BEHAVIORS = [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('rain', 'Rainy day'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const FOX_BEHAVIORS = [b('trotting', 'Trotting'), b('sitting', 'Sitting'), b('pouncing', 'Pouncing'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
-const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('hopping', 'Hopping'), b('curious', 'Curious'), b('startled', 'Diving in')];
+const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('hopping', 'Hopping'), b('curious', 'Curious'), b('rain', 'Singing in the rain'), b('startled', 'Diving in')];
 // Tier-2 animals reuse the ground-animal behaviour sets, so their ids match those sets (the labels are their own).
 const LIZARD_BEHAVIORS = [b('trotting', 'Scurrying'), b('sitting', 'Basking'), b('pouncing', 'Snapping'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const SEAL_BEHAVIORS = [b('shuffling', 'Flopping'), b('sniffing', 'Sunbathing'), b('curious', 'Curious'), b('startled', 'Startled')];
-const SNAIL_BEHAVIORS = [b('shuffling', 'Gliding'), b('sniffing', 'Munching'), b('curled', 'In its shell'), b('curious', 'Curious')];
+const SNAIL_BEHAVIORS = [b('shuffling', 'Gliding'), b('sniffing', 'Munching'), b('curled', 'In its shell'), b('curious', 'Curious'), b('rain', 'After the rain')];
 const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
@@ -322,7 +323,7 @@ export const SPECIES: Species[] = [
     emoji: '🐧',
     hint: 'Waddles around in little huddles.',
     rare: false,
-    behaviors: [b('shuffling', 'Waddling'), b('sniffing', 'Preening'), b('curious', 'Curious'), b('startled', 'Startled')],
+    behaviors: [b('shuffling', 'Waddling'), b('sniffing', 'Preening'), b('curious', 'Curious'), b('rain', 'Snowstorm huddle'), b('startled', 'Startled')],
   },
   {
     id: 'aurora-fox',
