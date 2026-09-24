@@ -29,7 +29,14 @@ export type SpeciesId =
   | 'crab'
   | 'seal'
   | 'seagull'
-  | 'pearl-seal';
+  | 'pearl-seal'
+  | 'arctic-fox'
+  | 'snow-bunny'
+  | 'penguin'
+  | 'aurora-fox'
+  | 'snail'
+  | 'badger'
+  | 'glow-snail';
 
 export interface Behavior {
   id: string;
@@ -77,6 +84,7 @@ const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('h
 // Tier-2 animals reuse the ground-animal behaviour sets, so their ids match those sets (the labels are their own).
 const LIZARD_BEHAVIORS = [b('trotting', 'Scurrying'), b('sitting', 'Basking'), b('pouncing', 'Snapping'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const SEAL_BEHAVIORS = [b('shuffling', 'Flopping'), b('sniffing', 'Sunbathing'), b('curious', 'Curious'), b('startled', 'Startled')];
+const SNAIL_BEHAVIORS = [b('shuffling', 'Gliding'), b('sniffing', 'Munching'), b('curled', 'In its shell'), b('curious', 'Curious')];
 const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
@@ -288,6 +296,71 @@ export const SPECIES: Species[] = [
     rare: true,
     legendary: true,
     behaviors: SEAL_BEHAVIORS,
+  },
+  {
+    id: 'arctic-fox',
+    name: 'Arctic Fox',
+    biome: 'snow',
+    emoji: '🦊',
+    hint: 'Snow-white and very hard to sneak up on.',
+    rare: false,
+    behaviors: FOX_BEHAVIORS,
+  },
+  {
+    id: 'snow-bunny',
+    name: 'Snow Bunny',
+    biome: 'snow',
+    emoji: '🐇',
+    hint: 'Hops about the frosty glades.',
+    rare: false,
+    behaviors: [b('shuffling', 'Hopping'), b('sniffing', 'Nibbling'), b('curious', 'Curious'), b('startled', 'Startled')],
+  },
+  {
+    id: 'penguin',
+    name: 'Penguin',
+    biome: 'snow',
+    emoji: '🐧',
+    hint: 'Waddles around in little huddles.',
+    rare: false,
+    behaviors: [b('shuffling', 'Waddling'), b('sniffing', 'Preening'), b('curious', 'Curious'), b('startled', 'Startled')],
+  },
+  {
+    id: 'aurora-fox',
+    name: 'Aurora Fox',
+    biome: 'snow',
+    emoji: '🦊',
+    hint: 'A legend of the snowy hills, glowing like the northern lights on clear nights.',
+    rare: true,
+    legendary: true,
+    behaviors: FOX_BEHAVIORS,
+  },
+  {
+    id: 'snail',
+    name: 'Snail',
+    biome: 'mushroom',
+    emoji: '🐌',
+    hint: 'Glides slowly between the mushrooms.',
+    rare: false,
+    behaviors: SNAIL_BEHAVIORS,
+  },
+  {
+    id: 'badger',
+    name: 'Sleepy Badger',
+    biome: 'mushroom',
+    emoji: '🦡',
+    hint: 'Waddles, digs, and naps a lot.',
+    rare: false,
+    behaviors: [b('trotting', 'Waddling'), b('sitting', 'Sitting'), b('pouncing', 'Digging'), b('curious', 'Curious'), b('sleeping', 'Napping'), b('startled', 'Startled')],
+  },
+  {
+    id: 'glow-snail',
+    name: 'Glow Snail',
+    biome: 'mushroom',
+    emoji: '🐌',
+    hint: 'A legend of the hollow that only comes out after dark.',
+    rare: true,
+    legendary: true,
+    behaviors: SNAIL_BEHAVIORS,
   },
 ];
 

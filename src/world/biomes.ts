@@ -1,6 +1,6 @@
 import { hash2 } from '../rng';
 
-export type BiomeId = 'meadow' | 'blossom' | 'wetlands' | 'dunes' | 'coast';
+export type BiomeId = 'meadow' | 'blossom' | 'wetlands' | 'dunes' | 'coast' | 'snow' | 'mushroom';
 
 export interface GroundPalette {
   low: string;
@@ -72,6 +72,28 @@ export const BIOMES: BiomeDef[] = [
     pondCoverage: 0.34,
     duneHeight: 0.4,
     palette: { low: '#fff0dc', mid: '#ffe8d6', high: '#fde0e4' },
+  },
+  {
+    id: 'snow',
+    name: 'Snowdrop Hills',
+    emoji: '❄️',
+    minDistance: 700,
+    hillHeight: 1.7,
+    pondAmount: 0.5,
+    pondCoverage: 0.66,
+    duneHeight: 0,
+    palette: { low: '#eef2ff', mid: '#f8f8ff', high: '#ffffff' },
+  },
+  {
+    id: 'mushroom',
+    name: 'Mushroom Hollow',
+    emoji: '🍄',
+    minDistance: 700,
+    hillHeight: 0.8,
+    pondAmount: 0.7,
+    pondCoverage: 0.6,
+    duneHeight: 0,
+    palette: { low: '#b9d9c9', mid: '#cfd4ec', high: '#e2d2ef' },
   },
 ];
 

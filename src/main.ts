@@ -11,6 +11,7 @@ import { hashString, randomSeedName } from './rng';
 import type { Collider } from './world/props';
 import { biome, type BiomeId } from './world/biomes';
 import { DayNight } from './world/DayNight';
+import { setNightGlow } from './world/props';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
 import { Journal } from './safari/Journal';
@@ -26,7 +27,7 @@ import { Ducks } from './wildlife/Ducks';
 import { Fireflies } from './wildlife/Fireflies';
 import { GroundAnimals } from './wildlife/GroundAnimals';
 import { Owls } from './wildlife/Owls';
-import { Petals } from './wildlife/Petals';
+import { Drift, PETALS, SNOW, SPORES } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
 import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
@@ -100,9 +101,11 @@ const birds = new Birds();
 const squirrels = new Squirrels(world);
 const owls = new Owls(world);
 const fireflies = new Fireflies();
-const petals = new Petals();
+const petals = new Drift(PETALS);
+const snowfall = new Drift(SNOW);
+const spores = new Drift(SPORES);
 const groundAnimals = new GroundAnimals(world);
-scene.add(birds.group, squirrels.group, owls.group, fireflies.points, petals.points, groundAnimals.group);
+scene.add(birds.group, squirrels.group, owls.group, fireflies.points, petals.points, snowfall.points, spores.points, groundAnimals.group);
 
 const rig = new CameraRig(window.innerWidth / window.innerHeight);
 const input = new Input();
@@ -463,13 +466,21 @@ function frame(timestamp: number): void {
     wetland.update(dt, car.position, presence);
     dragonflies.update(dt, car.position, dayNight.darkness < 0.5);
     fireflies.update(dt, car.position, dayNight.darkness, world);
-    petals.update(dt, car.position, world.biomeWeight(car.position.x, car.position.z, 'blossom'));
+    const cx = car.position.x;
+    const cz = car.position.z;
+    petals.update(dt, car.position, world.biomeWeight(cx, cz, 'blossom'));
+    snowfall.update(dt, car.position, world.biomeWeight(cx, cz, 'snow'));
+    // Spores glow brighter after dark, along with the mushroom caps.
+    spores.update(dt, car.position, world.biomeWeight(cx, cz, 'mushroom'), 0.45 + 0.55 * dayNight.darkness);
+    setNightGlow(dayNight.darkness);
     updateBiome(dt);
   }
   // Follow the car along the ground so honk hops don't bob the camera.
   groundFocus.set(car.position.x, car.ground, car.position.z);
   rig.update(dt, groundFocus, car.velocity);
   photo.update(dt, car.root, rig.camera);
+  // Seen from the roof, the car itself only gets in the way.
+  car.setShellVisible(!photo.ready);
   updateHonkBubble(dt, honking);
   updatePhotoHint(dt);
 

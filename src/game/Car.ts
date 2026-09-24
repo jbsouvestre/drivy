@@ -125,6 +125,8 @@ export class Car {
   private readonly wheels: THREE.Mesh[] = [];
   private readonly rearWheels: THREE.Mesh[] = [];
   private readonly frontPivots: THREE.Group[] = [];
+  /** Wheel pivots (all four), so the car's shell can be hidden without its lights. */
+  private readonly wheelPivots: THREE.Group[] = [];
 
   constructor(private readonly terrain: Terrain) {
     // Yaw first, then pitch/roll in the car's own frame, so tilting follows the slope.
@@ -234,6 +236,15 @@ export class Car {
 
   get headlightsOn(): boolean {
     return this.headlights.on;
+  }
+
+  /**
+   * Show or hide the car's body and wheels (headlights stay on). Used by the
+   * first-person photo view, where the roof would block low, close animals.
+   */
+  setShellVisible(visible: boolean): void {
+    this.body.visible = visible;
+    for (const p of this.wheelPivots) p.visible = visible;
   }
 
   /** Flip the headlights; returns the new state. */
@@ -459,6 +470,7 @@ export class Car {
       const pivot = new THREE.Group();
       pivot.position.set(x, WHEEL_RADIUS, z);
       this.root.add(pivot);
+      this.wheelPivots.push(pivot);
 
       const wheel = add(tireGeo, COLORS.tire, 0, 0, 0, pivot);
       wheel.rotation.z = Math.PI / 2;

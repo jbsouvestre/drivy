@@ -26,6 +26,8 @@ const DIFFICULTY_START = 60;
 const DIFFICULTY_FULL = 700;
 /** Sandy beach ring colour around ponds. */
 const SAND = new THREE.Color('#f5e6c8');
+/** Frosty shoreline colour in the snow. */
+const ICE_SHORE = new THREE.Color('#dcebf7');
 /** Size of one checker tile in world units. */
 const TILE_SIZE = 4;
 /** Props are scattered on a jittered grid of this cell size. */
@@ -355,7 +357,7 @@ export class World implements Terrain {
       // Sun-kissed hilltops: lighten with height so the hills read from above.
       tmp.lerp(white, 0.3 * Math.max(0, h(gi, gj) / HILL_HEIGHT));
       // Sandy shores and pond beds.
-      tmp.lerp(SAND, 1 - smoothstep(WATER_LEVEL, WATER_LEVEL + 0.35, h(gi, gj)));
+      tmp.lerp(b.a === 'snow' ? ICE_SHORE : SAND, 1 - smoothstep(WATER_LEVEL, WATER_LEVEL + 0.35, h(gi, gj)));
       colors[i * 3] = tmp.r;
       colors[i * 3 + 1] = tmp.g;
       colors[i * 3 + 2] = tmp.b;
@@ -421,7 +423,43 @@ export class World implements Terrain {
         let kind: PropKind;
         let scale: number;
         const depth = WATER_LEVEL - ground;
-        if (here === 'dunes') {
+        if (here === 'snow') {
+          // Snowy forests of frosted pines, with ice crystals and the odd snowman.
+          const treeChance = 0.05 + smoothstep(0.48, 0.72, forest) * 0.45;
+          if (rSpawn < treeChance && dry) {
+            kind = 'snowPine';
+            scale = 0.85 + rScale * 0.55;
+          } else if (rSpawn < treeChance + 0.025) {
+            kind = 'iceCrystal';
+            scale = 0.7 + rScale * 0.9;
+          } else if (rSpawn > 0.994 && dry) {
+            kind = 'snowman';
+            scale = 0.9 + rScale * 0.3;
+          } else if (rSpawn > 0.97 && rSpawn <= 0.994) {
+            kind = 'stone';
+            scale = 0.6 + rScale * 0.8;
+          } else {
+            continue;
+          }
+        } else if (here === 'mushroom') {
+          // A mossy hollow: giant mushrooms among dark trees, little clusters everywhere.
+          const giantChance = 0.05 + smoothstep(0.45, 0.7, forest) * 0.12;
+          if (rSpawn < giantChance && dry) {
+            kind = 'giantMushroom';
+            scale = 0.8 + rScale * 0.9;
+          } else if (rSpawn < giantChance + 0.05 && dry) {
+            kind = rVariant < 0.5 ? 'roundTree' : 'pineTree';
+            scale = 0.9 + rScale * 0.4;
+          } else if (rSpawn < giantChance + 0.3 && dry) {
+            kind = 'mushrooms';
+            scale = 1 + rScale * 1.2;
+          } else if (rSpawn > 0.985) {
+            kind = 'stone';
+            scale = 0.6 + rScale * 0.8;
+          } else {
+            continue;
+          }
+        } else if (here === 'dunes') {
           // Wind-swept sand: cacti, sandstone, grass tufts, palms around the rare oases.
           const oasis = depth > -1.2 && dry;
           if (oasis && rSpawn < 0.25) {

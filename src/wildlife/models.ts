@@ -320,6 +320,8 @@ export const FOX_COLORS = {
   red: FOX,
   moon: { coat: '#ddd6ff', white: '#ffffff', dark: '#8f84c9', eye: '#6b5fb8' },
   fennec: { coat: '#f7dcb4', white: '#fffaf0', dark: '#c9a07e', eye: '#4a3f58' },
+  arctic: { coat: '#fbfbff', white: '#ffffff', dark: '#b8c0d8', eye: '#4a3f58' },
+  aurora: { coat: '#c8f5ea', white: '#ffffff', dark: '#8fb8ff', eye: '#5f6ab8' },
 };
 
 /** Little fox with a big fluffy tail. Feet at y = 0, facing +Z. */
@@ -769,5 +771,125 @@ export function createSeagull(): GroundModel {
   const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#3d3350', [0.07 * side, 0.03, 0.06], 0.02));
   const tail = new THREE.Group();
   body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+/** Round snow bunny with long ears. Feet at y = 0, facing +Z. */
+export function createBunny(): GroundModel {
+  const c = { fur: '#ffffff', inner: '#ffc8dd', eye: '#4a3f58' };
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, c.fur, [0, 0.22, -0.03], [0.2, 0.19, 0.24]);
+  const legs = [
+    [-0.09, 0.1],
+    [0.09, 0.1],
+    [-0.11, -0.12],
+    [0.11, -0.12],
+  ].map(([x, z]) => leg(body, x, 0.1, z, 0.09, 0.045, c.fur));
+  const head = new THREE.Group();
+  head.position.set(0, 0.38, 0.14);
+  body.add(head);
+  part(head, geo.sphere, c.fur, [0, 0, 0], [0.15, 0.13, 0.13]);
+  part(head, geo.smallSphere, c.inner, [0, -0.02, 0.13], 0.025);
+  const eyes: THREE.Mesh[] = [];
+  for (const side of [-1, 1]) {
+    eyes.push(part(head, geo.smallSphere, c.eye, [0.07 * side, 0.03, 0.1], 0.024));
+    const ear = part(head, geo.sphere, c.fur, [0.06 * side, 0.2, -0.03], [0.045, 0.16, 0.035]);
+    ear.rotation.z = -0.2 * side;
+    part(head, geo.sphere, c.inner, [0.062 * side, 0.2, -0.005], [0.025, 0.12, 0.015]).rotation.z = -0.2 * side;
+  }
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.24, -0.26);
+  body.add(tail);
+  part(tail, geo.sphere, c.fur, [0, 0, 0], 0.07);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+/** Tubby toy penguin. Feet at y = 0, facing +Z. */
+export function createPenguin(): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, '#5f6a8c', [0, 0.38, 0], [0.24, 0.34, 0.22]);
+  part(body, geo.sphere, '#ffffff', [0, 0.35, 0.08], [0.19, 0.28, 0.16]);
+  for (const side of [-1, 1]) part(body, geo.sphere, '#5f6a8c', [0.23 * side, 0.4, 0], [0.04, 0.18, 0.1]).rotation.z = 0.25 * side;
+  const legs = [
+    leg(body, -0.08, 0.06, 0.06, 0.05, 0.03, '#ffb870'),
+    leg(body, 0.08, 0.06, 0.06, 0.05, 0.03, '#ffb870'),
+    leg(body, -0.08, 0.06, 0.04, 0.05, 0.03, '#ffb870'),
+    leg(body, 0.08, 0.06, 0.04, 0.05, 0.03, '#ffb870'),
+  ];
+  for (const l of legs) part(l, geo.sphere, '#ffb870', [0, -0.05, 0.05], [0.05, 0.015, 0.07]);
+  const head = new THREE.Group();
+  head.position.set(0, 0.74, 0.02);
+  body.add(head);
+  part(head, geo.sphere, '#5f6a8c', [0, 0, 0], 0.16);
+  part(head, geo.sphere, '#ffffff', [0, -0.02, 0.07], [0.12, 0.1, 0.1]);
+  part(head, geo.cone, '#ffb870', [0, -0.03, 0.18], [0.035, 0.08, 0.03]).rotation.x = Math.PI / 2;
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#3d3350', [0.06 * side, 0.03, 0.13], 0.024));
+  for (const side of [-1, 1]) part(head, geo.smallSphere, '#ffb3c6', [0.1 * side, -0.04, 0.1], [0.03, 0.018, 0.01]);
+  const tail = new THREE.Group();
+  body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+export const SNAIL_COLORS = {
+  normal: { body: '#e8dcc8', shell: '#f4b8c8', swirl: '#d894b0' },
+  glow: { body: '#d8f0ff', shell: '#b8f0ff', swirl: '#8fd8ff' },
+};
+
+/** Little snail with a spiral shell; the "head" group holds its body and eye stalks, so it can retract into the shell. */
+export function createSnail(colors: { body: string; shell: string; swirl: string }): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, colors.shell, [0, 0.22, -0.05], [0.16, 0.18, 0.18]);
+  part(body, geo.sphere, colors.swirl, [0.12, 0.23, -0.05], [0.05, 0.1, 0.1]);
+  part(body, geo.sphere, colors.swirl, [-0.12, 0.23, -0.05], [0.05, 0.1, 0.1]);
+  const head = new THREE.Group();
+  body.add(head);
+  part(head, geo.sphere, colors.body, [0, 0.05, 0.05], [0.1, 0.05, 0.26]);
+  part(head, geo.sphere, colors.body, [0, 0.12, 0.24], [0.07, 0.08, 0.07]);
+  const eyes: THREE.Mesh[] = [];
+  for (const side of [-1, 1]) {
+    part(head, geo.cylinder, colors.body, [0.035 * side, 0.22, 0.26], [0.012, 0.13, 0.012]).rotation.z = -0.2 * side;
+    eyes.push(part(head, geo.smallSphere, '#3d3350', [0.05 * side, 0.29, 0.26], 0.022));
+  }
+  const legs = [0, 1, 2, 3].map(() => {
+    const g = new THREE.Group();
+    body.add(g);
+    return g;
+  });
+  const tail = new THREE.Group();
+  body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+/** Plump, sleepy toy badger with a striped face. Feet at y = 0, facing +Z. */
+export function createBadger(): GroundModel {
+  const c = { coat: '#9a93ad', white: '#ffffff', dark: '#5b5570', eye: '#3d3350' };
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, c.coat, [0, 0.3, 0], [0.26, 0.2, 0.38]);
+  const legs = [
+    [-0.13, 0.2],
+    [0.13, 0.2],
+    [-0.13, -0.2],
+    [0.13, -0.2],
+  ].map(([x, z]) => leg(body, x, 0.2, z, 0.18, 0.055, c.dark));
+  const head = new THREE.Group();
+  head.position.set(0, 0.36, 0.36);
+  body.add(head);
+  part(head, geo.sphere, c.white, [0, 0, 0], [0.15, 0.13, 0.16]);
+  for (const side of [-1, 1]) part(head, geo.sphere, c.dark, [0.07 * side, 0.02, 0.02], [0.05, 0.1, 0.15]);
+  part(head, geo.smallSphere, c.dark, [0, -0.03, 0.16], 0.035);
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#ffffff', [0.07 * side, 0.04, 0.11], 0.02));
+  for (const side of [-1, 1]) part(head, geo.sphere, c.coat, [0.11 * side, 0.1, -0.05], [0.04, 0.04, 0.02]);
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.34, -0.36);
+  body.add(tail);
+  part(tail, geo.sphere, c.coat, [0, 0, -0.03], [0.05, 0.05, 0.08]);
   return { root, body, head, neck: null, tail, legs, eyes };
 }

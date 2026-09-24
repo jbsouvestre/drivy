@@ -14,7 +14,12 @@ export type PropKind =
   | 'sandstone'
   | 'duneGrass'
   | 'palmTree'
-  | 'shells';
+  | 'shells'
+  | 'snowPine'
+  | 'snowman'
+  | 'iceCrystal'
+  | 'giantMushroom'
+  | 'mushrooms';
 
 /** One placed prop. Its instance matrices are recomposed when it wobbles. */
 export interface Prop {
@@ -204,7 +209,111 @@ function buildDefs(): Record<PropKind, PropDef> {
     new THREE.ConeGeometry(0.07, 0.2, 7).rotateZ(Math.PI / 2).translate(0.3, 0.06, 0.12),
   ]);
 
+  // Snowy pine: the pine's cone tiers, each capped with a snowy rim.
+  const snowCaps = mergeGeometries([
+    new THREE.ConeGeometry(0.95, 0.5, 10).translate(0, 2.35, 0),
+    new THREE.ConeGeometry(0.7, 0.42, 10).translate(0, 3.1, 0),
+    new THREE.ConeGeometry(0.45, 0.35, 10).translate(0, 3.78, 0),
+  ]);
+
+  // Snowman: three snowballs, a carrot nose, coal eyes and a little scarf.
+  const snowballs = mergeGeometries([
+    new THREE.SphereGeometry(0.55, 14, 10).translate(0, 0.5, 0),
+    new THREE.SphereGeometry(0.4, 14, 10).translate(0, 1.2, 0),
+    new THREE.SphereGeometry(0.28, 14, 10).translate(0, 1.73, 0),
+  ]);
+  const carrot = new THREE.ConeGeometry(0.06, 0.28, 8).rotateX(Math.PI / 2).translate(0, 1.72, 0.37);
+  const coal = mergeGeometries([
+    new THREE.SphereGeometry(0.04, 6, 4).translate(-0.1, 1.82, 0.24),
+    new THREE.SphereGeometry(0.04, 6, 4).translate(0.1, 1.82, 0.24),
+    new THREE.SphereGeometry(0.05, 6, 4).translate(0, 1.3, 0.39),
+    new THREE.SphereGeometry(0.05, 6, 4).translate(0, 1.14, 0.4),
+  ]);
+  const scarf = new THREE.TorusGeometry(0.27, 0.07, 6, 16).rotateX(Math.PI / 2).translate(0, 1.48, 0);
+
+  // Ice crystal: a cluster of faceted, pale-blue shards.
+  const ice = mergeGeometries(
+    [
+      [0, 0, 1.1, 0.22, 0],
+      [0.28, 0.1, 0.75, 0.16, 0.4],
+      [-0.25, -0.12, 0.65, 0.15, -0.35],
+      [0.05, 0.28, 0.55, 0.12, 0.2],
+    ].map(([x, z, h, r, tilt]) => new THREE.OctahedronGeometry(r, 0).scale(1, h / r / 2, 1).translate(0, h / 2, 0).rotateZ(tilt).translate(x, 0, z)),
+  );
+
+  // Giant mushroom: a stout stalk under a big spotted dome cap.
+  const giantStalk = new THREE.CylinderGeometry(0.28, 0.4, 1.8, 12).translate(0, 0.9, 0);
+  const giantCap = mergeGeometries([
+    new THREE.SphereGeometry(1.25, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.6, 1).translate(0, 1.72, 0),
+    new THREE.CylinderGeometry(1.25, 1.1, 0.12, 18).translate(0, 1.7, 0),
+  ]);
+  const giantSpots = mergeGeometries(
+    [
+      [0.5, 0.2],
+      [-0.4, 0.5],
+      [0.1, -0.6],
+      [-0.6, -0.3],
+      [0, 0.1],
+    ].map(([x, z]) => {
+      const d = Math.hypot(x, z);
+      return new THREE.SphereGeometry(0.16, 8, 6).scale(1, 0.4, 1).translate(x, 1.72 + 0.75 * Math.sqrt(Math.max(0, 1 - (d / 1.25) ** 2)), z);
+    }),
+  );
+
+  // A little cluster of small mushrooms (decoration).
+  const smallLayout = [
+    [0, 0, 0.35],
+    [0.22, 0.1, 0.25],
+    [-0.15, 0.18, 0.2],
+    [0.05, -0.2, 0.28],
+  ];
+  const smallStalks = mergeGeometries(smallLayout.map(([x, z, h]) => new THREE.CylinderGeometry(0.035, 0.045, h, 6).translate(x, h / 2, z)));
+  const smallCaps = mergeGeometries(
+    smallLayout.map(([x, z, h]) => new THREE.SphereGeometry(0.12 * (h / 0.3), 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.7, 1).translate(x, h, z)),
+  );
+
   return {
+    snowPine: {
+      radius: 0.8,
+      wobble: 0.26,
+      parts: [
+        { geometry: trunk(1.3), material: trunkMat },
+        { geometry: pineFoliage, material: mat('#ffffff'), palette: ['#8fc9b8', '#9fcfc0', '#a8c8d8'] },
+        { geometry: snowCaps, material: mat('#ffffff') },
+      ],
+    },
+    snowman: {
+      radius: 0.6,
+      wobble: 0.15,
+      parts: [
+        { geometry: snowballs, material: mat('#ffffff') },
+        { geometry: carrot, material: mat('#ffae70') },
+        { geometry: coal, material: mat('#5b4e6b') },
+        { geometry: scarf, material: mat('#ffffff'), palette: ['#ff9aa2', '#a0c4ff', '#b5ead7', '#cdb4db'] },
+      ],
+    },
+    iceCrystal: {
+      radius: 0.45,
+      wobble: 0.02,
+      parts: [{ geometry: ice, material: glassy('#cfe6ff'), palette: ['#cfe6ff', '#dcd6ff', '#d6fff4'] }],
+    },
+    giantMushroom: {
+      radius: 0.5,
+      wobble: 0.12,
+      parts: [
+        { geometry: giantStalk, material: mat('#fff4e6') },
+        { geometry: giantCap, material: MUSHROOM_CAP, palette: ['#ff9fb8', '#c5a8ff', '#8fd3ff', '#ffb38a'] },
+        { geometry: giantSpots, material: mat('#ffffff') },
+      ],
+    },
+    mushrooms: {
+      radius: 0,
+      wobble: 0,
+      parts: [
+        { geometry: smallStalks, material: mat('#fff4e6') },
+        { geometry: smallCaps, material: MUSHROOM_CAP, palette: ['#ff9fb8', '#c5a8ff', '#8fd3ff', '#ffe27a'] },
+      ],
+    },
     cactus: {
       radius: 0.45,
       wobble: 0.1,
@@ -301,6 +410,29 @@ function buildDefs(): Record<PropKind, PropDef> {
       parts: [{ geometry: stone, material: mat('#ffffff', true), palette: ['#c4bbdb', '#b7c3d6', '#d9cbb8', '#e0c3cf'] }],
     },
   };
+}
+
+/** Shiny, slightly see-through material for ice. */
+function glassy(color: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.85, flatShading: true });
+}
+
+/**
+ * Mushroom caps glow softly after dark. Instance colours tint the glow too:
+ * the emissive term is multiplied by the per-instance colour in the shader.
+ */
+const MUSHROOM_CAP = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, emissive: '#ffffff', emissiveIntensity: 0 });
+MUSHROOM_CAP.onBeforeCompile = (shader) => {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    // Instance colours reach the fragment shader as vColor (three defines USE_COLOR for them there).
+    '#include <emissivemap_fragment>\n#ifdef USE_COLOR\ntotalEmissiveRadiance *= vColor.rgb;\n#endif',
+  );
+};
+
+/** 0 by day → 1 at night: how brightly mushroom caps glow. */
+export function setNightGlow(amount: number): void {
+  MUSHROOM_CAP.emissiveIntensity = amount * 0.7;
 }
 
 let defs: Record<PropKind, PropDef> | null = null;

@@ -131,7 +131,7 @@ Extra animals in frame add a small "group shot" bonus.
    starts ~160 units out, with blossom trees, flower glades, falling petals, and
    deer (herds, very shy), foxes (sit, pounce) and night-only hedgehogs (curl up when startled).
    Biome HUD pill, first-visit banner, journal grouped by biome (undiscovered = locked).
-4. 🚧 **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.
+4. ✅ **More biomes and species.** Wetlands next, then tiers 2–3, legendaries, rare variants.
    - ✅ **Lily Wetlands** (tier 1): big flat lakes (`pondCoverage`), reed beds, lily pads and water lilies;
      frogs (lily pads, croak, dive in), herons (wade, fish, fly off), pond turtles (swim, hide in shell), dragonflies.
    - ✅ **Legendaries**: Golden Duck (Meadow), Moon Fox (Blossom Woods, night only), Golden Frog (Wetlands).
@@ -141,7 +141,11 @@ Extra animals in frame add a small "group shot" bonus.
      (big lagoons, beaches with shells and palms; crabs that tuck in, seals, seagulls, legendary Pearl Seal).
      Ground animals now declare their biome, beach habitat (`nearWater`) and rest pose, so new species reuse
      the deer / fox / hedgehog behaviour sets with their own labels.
-   - ⏳ Tier 3: Snowdrop Hills, Mushroom Hollow.
+   - ✅ **Tier 3** (~700+ units out): **Snowdrop Hills** (tall snowy hills, frosted pines, ice crystals,
+     snowmen, icy shores, falling snow; arctic foxes, snow bunnies, penguins, legendary Aurora Fox, night only)
+     and **Mushroom Hollow** (giant mushrooms whose caps glow in their own colours at night, mushroom
+     clusters, rising spores; snails that hide in their shells, sleepy badgers, legendary Glow Snail, night only).
+   - Photo mode hides the car's shell once settled, so low, close animals aren't blocked by the roof.
 5. **Nice-to-haves.** Photo requests from a pelican editor, weather (rain → frogs, snow),
    ambient music per biome, cosmetic unlocks from journal completion.
 

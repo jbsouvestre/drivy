@@ -6,7 +6,12 @@ import type { World } from '../world/World';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
 import {
+  createBadger,
+  createBunny,
   createCamel,
+  createPenguin,
+  createSnail,
+  SNAIL_COLORS,
   createCrab,
   createDeer,
   createFox,
@@ -33,7 +38,14 @@ type Kind =
   | 'crab'
   | 'seal'
   | 'seagull'
-  | 'pearlSeal';
+  | 'pearlSeal'
+  | 'arcticFox'
+  | 'bunny'
+  | 'penguin'
+  | 'auroraFox'
+  | 'snail'
+  | 'badger'
+  | 'glowSnail';
 /** Which behaviour/animation set an animal uses (a legendary can reuse a regular one). */
 type Behaves = 'deer' | 'fox' | 'hedgehog';
 
@@ -321,6 +333,153 @@ const KINDS: Record<Kind, KindDef> = {
     radius: 0.6,
     reaction: 'flee',
     gait: 6,
+  },
+
+  // ---- Snowdrop Hills
+  arcticFox: {
+    species: 'arctic-fox',
+    behaves: 'fox',
+    biome: 'snow',
+    sleepDrop: -0.24,
+    create: () => createFox(FOX_COLORS.arctic),
+    scale: 1.3,
+    walkSpeed: 2,
+    fleeSpeed: 7.5,
+    notice: 20,
+    groupSize: [1, 1],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.75,
+    radius: 0.45,
+    reaction: 'flee',
+    gait: 5,
+  },
+  bunny: {
+    species: 'snow-bunny',
+    behaves: 'hedgehog',
+    biome: 'snow',
+    sleepDrop: -0.06,
+    create: createBunny,
+    scale: 1.4,
+    walkSpeed: 1.4,
+    fleeSpeed: 7,
+    notice: 14,
+    groupSize: [1, 3],
+    maxGroups: 3,
+    nocturnal: false,
+    sleepsAtNight: false,
+    height: 0.6,
+    radius: 0.35,
+    reaction: 'flee',
+    gait: 10,
+  },
+  penguin: {
+    species: 'penguin',
+    behaves: 'hedgehog',
+    biome: 'snow',
+    sleepDrop: -0.04,
+    create: createPenguin,
+    scale: 1.4,
+    walkSpeed: 0.8,
+    fleeSpeed: 2.6,
+    notice: 12,
+    groupSize: [2, 4],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: false,
+    height: 0.95,
+    radius: 0.4,
+    reaction: 'flee',
+    gait: 11,
+  },
+  auroraFox: {
+    species: 'aurora-fox',
+    behaves: 'fox',
+    biome: 'snow',
+    sleepDrop: -0.24,
+    legendaryChance: 0.01,
+    create: () => {
+      const model = createFox(FOX_COLORS.aurora);
+      makeLegendary(model.root, 0.5);
+      return model;
+    },
+    scale: 1.35,
+    walkSpeed: 2,
+    fleeSpeed: 8,
+    notice: 24,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: true,
+    sleepsAtNight: false,
+    height: 0.75,
+    radius: 0.45,
+    reaction: 'flee',
+    gait: 5,
+  },
+
+  // ---- Mushroom Hollow
+  snail: {
+    species: 'snail',
+    behaves: 'hedgehog',
+    biome: 'mushroom',
+    sleepDrop: 0,
+    create: () => createSnail(SNAIL_COLORS.normal),
+    scale: 1.8,
+    walkSpeed: 0.25,
+    fleeSpeed: 0,
+    notice: 6,
+    groupSize: [1, 2],
+    maxGroups: 3,
+    nocturnal: false,
+    sleepsAtNight: false,
+    height: 0.45,
+    radius: 0.35,
+    reaction: 'curl',
+    gait: 0,
+  },
+  badger: {
+    species: 'badger',
+    behaves: 'fox',
+    biome: 'mushroom',
+    sleepDrop: -0.16,
+    create: createBadger,
+    scale: 1.35,
+    walkSpeed: 1.1,
+    fleeSpeed: 5,
+    notice: 16,
+    groupSize: [1, 1],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.6,
+    radius: 0.5,
+    reaction: 'flee',
+    gait: 6,
+  },
+  glowSnail: {
+    species: 'glow-snail',
+    behaves: 'hedgehog',
+    biome: 'mushroom',
+    sleepDrop: 0,
+    legendaryChance: 0.02,
+    create: () => {
+      const model = createSnail(SNAIL_COLORS.glow);
+      makeLegendary(model.root, 0.6);
+      return model;
+    },
+    scale: 1.9,
+    walkSpeed: 0.25,
+    fleeSpeed: 0,
+    notice: 8,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: true,
+    sleepsAtNight: false,
+    height: 0.45,
+    radius: 0.35,
+    reaction: 'curl',
+    gait: 0,
   },
 };
 
