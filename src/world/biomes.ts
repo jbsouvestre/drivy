@@ -1,6 +1,6 @@
 import { hash2 } from '../rng';
 
-export type BiomeId = 'meadow' | 'blossom' | 'wetlands';
+export type BiomeId = 'meadow' | 'blossom' | 'wetlands' | 'dunes' | 'coast';
 
 export interface GroundPalette {
   low: string;
@@ -20,13 +20,15 @@ export interface BiomeDef {
   pondAmount: number;
   /** Pond-noise threshold where basins start: lower means more of the land is water. */
   pondCoverage: number;
+  /** Height of long wind-swept dune ridges (0 = none). */
+  duneHeight: number;
   /** Ground colours; null uses the seed's own meadow palette. */
   palette: GroundPalette | null;
 }
 
 /** Ordered by `minDistance` (tier). */
 export const BIOMES: BiomeDef[] = [
-  { id: 'meadow', name: 'Meadow', emoji: '🌾', minDistance: 0, hillHeight: 1, pondAmount: 1, pondCoverage: 0.6, palette: null },
+  { id: 'meadow', name: 'Meadow', emoji: '🌾', minDistance: 0, hillHeight: 1, pondAmount: 1, pondCoverage: 0.6, duneHeight: 0, palette: null },
   {
     id: 'blossom',
     name: 'Blossom Woods',
@@ -35,6 +37,7 @@ export const BIOMES: BiomeDef[] = [
     hillHeight: 0.7,
     pondAmount: 0.45,
     pondCoverage: 0.62,
+    duneHeight: 0,
     palette: { low: '#f6d9e7', mid: '#fbe7ef', high: '#eadff6' },
   },
   {
@@ -45,7 +48,30 @@ export const BIOMES: BiomeDef[] = [
     hillHeight: 0.3,
     pondAmount: 1.15,
     pondCoverage: 0.44,
+    duneHeight: 0,
     palette: { low: '#cdeee2', mid: '#e0f2d8', high: '#eff0d2' },
+  },
+  {
+    id: 'dunes',
+    name: 'Candy Dunes',
+    emoji: '🏜️',
+    minDistance: 400,
+    hillHeight: 0.35,
+    pondAmount: 0.6,
+    pondCoverage: 0.7,
+    duneHeight: 2.8,
+    palette: { low: '#ffe2c6', mid: '#ffd6c2', high: '#fcd0d8' },
+  },
+  {
+    id: 'coast',
+    name: 'Sherbet Coast',
+    emoji: '🐚',
+    minDistance: 400,
+    hillHeight: 0.25,
+    pondAmount: 1.9,
+    pondCoverage: 0.34,
+    duneHeight: 0.4,
+    palette: { low: '#fff0dc', mid: '#ffe8d6', high: '#fde0e4' },
   },
 ];
 

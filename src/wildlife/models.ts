@@ -319,6 +319,7 @@ const FOX = { coat: '#ffac7d', white: '#fff6ee', dark: '#6e5a66', eye: '#4a3f58'
 export const FOX_COLORS = {
   red: FOX,
   moon: { coat: '#ddd6ff', white: '#ffffff', dark: '#8f84c9', eye: '#6b5fb8' },
+  fennec: { coat: '#f7dcb4', white: '#fffaf0', dark: '#c9a07e', eye: '#4a3f58' },
 };
 
 /** Little fox with a big fluffy tail. Feet at y = 0, facing +Z. */
@@ -606,4 +607,167 @@ export function makeLegendary(root: THREE.Object3D, intensity = 0.35): void {
     m.emissiveIntensity = intensity;
     o.material = m;
   });
+}
+
+const CAMEL = { coat: '#f3cfa2', light: '#fbe4c4', leg: '#e8bd8f', hoof: '#a88a74', eye: '#4a3f58' };
+
+/** Lanky toy camel with a big round hump. Feet at y = 0, facing +Z. */
+export function createCamel(): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, CAMEL.coat, [0, 1.35, 0], [0.34, 0.3, 0.6]);
+  part(body, geo.sphere, CAMEL.coat, [0, 1.68, -0.05], [0.26, 0.24, 0.3]);
+  part(body, geo.sphere, CAMEL.light, [0, 1.25, 0.05], [0.26, 0.2, 0.45]);
+  const legs = [
+    leg(body, -0.16, 1.15, 0.38, 1.12, 0.06, CAMEL.leg, CAMEL.hoof),
+    leg(body, 0.16, 1.15, 0.38, 1.12, 0.06, CAMEL.leg, CAMEL.hoof),
+    leg(body, -0.16, 1.15, -0.38, 1.12, 0.06, CAMEL.leg, CAMEL.hoof),
+    leg(body, 0.16, 1.15, -0.38, 1.12, 0.06, CAMEL.leg, CAMEL.hoof),
+  ];
+  const tail = new THREE.Group();
+  tail.position.set(0, 1.4, -0.58);
+  body.add(tail);
+  part(tail, geo.cylinder, CAMEL.coat, [0, -0.15, -0.02], [0.03, 0.3, 0.03]);
+  const neck = new THREE.Group();
+  neck.position.set(0, 1.45, 0.5);
+  body.add(neck);
+  part(neck, geo.cylinder, CAMEL.coat, [0, 0.25, 0.18], [0.1, 0.6, 0.1]).rotation.x = 0.7;
+  const head = new THREE.Group();
+  head.position.set(0, 0.5, 0.42);
+  neck.add(head);
+  part(head, geo.sphere, CAMEL.coat, [0, 0, 0.05], [0.13, 0.13, 0.2]);
+  part(head, geo.sphere, CAMEL.light, [0, -0.04, 0.2], [0.1, 0.08, 0.1]);
+  const eyes: THREE.Mesh[] = [];
+  for (const side of [-1, 1]) {
+    eyes.push(part(head, geo.smallSphere, CAMEL.eye, [0.1 * side, 0.05, 0.1], 0.028));
+    part(head, geo.sphere, CAMEL.coat, [0.12 * side, 0.12, -0.05], [0.04, 0.06, 0.03]);
+  }
+  return { root, body, head, neck, tail, legs, eyes };
+}
+
+export const LIZARD_COLORS = {
+  mint: { body: '#a8e3c4', belly: '#e8f7e0', spots: '#ffd27a' },
+  rainbow: { body: '#c5a8ff', belly: '#fff3c4', spots: '#ff9fc0' },
+};
+
+/** Low, long little lizard with a curly tail. Feet at y = 0, facing +Z. */
+export function createLizard(colors: { body: string; belly: string; spots: string }): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, colors.body, [0, 0.12, 0], [0.11, 0.07, 0.3]);
+  part(body, geo.sphere, colors.belly, [0, 0.09, 0.02], [0.08, 0.04, 0.24]);
+  for (const [x, z] of [[0.05, 0.1], [-0.05, -0.05], [0.04, -0.15]]) part(body, geo.smallSphere, colors.spots, [x, 0.18, z], 0.03);
+  const legs = [
+    [-0.1, 0.12],
+    [0.1, 0.12],
+    [-0.1, -0.12],
+    [0.1, -0.12],
+  ].map(([x, z]) => leg(body, x, 0.1, z, 0.1, 0.022, colors.body));
+  legs.forEach((l, i) => (l.rotation.z = (i % 2 ? -1 : 1) * 0.5));
+  const head = new THREE.Group();
+  head.position.set(0, 0.14, 0.32);
+  body.add(head);
+  part(head, geo.sphere, colors.body, [0, 0, 0.04], [0.09, 0.07, 0.12]);
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#3d3350', [0.06 * side, 0.04, 0.07], 0.022));
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.12, -0.28);
+  body.add(tail);
+  part(tail, geo.cone, colors.body, [0, 0, -0.22], [0.06, 0.45, 0.04]).rotation.x = -Math.PI / 2;
+  part(tail, geo.smallSphere, colors.spots, [0, 0.03, -0.12], 0.025);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+const CRAB = { shell: '#ff9f9a', light: '#ffc6bf', claw: '#ff8a86', eye: '#3d3350' };
+
+/** Round beach crab with eye stalks and big claws (part of the head, so they tuck in). */
+export function createCrab(): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = 0.16;
+  root.add(body);
+  part(body, geo.sphere, CRAB.shell, [0, 0, 0], [0.26, 0.12, 0.19]);
+  part(body, geo.sphere, CRAB.light, [0, -0.04, 0.02], [0.2, 0.06, 0.15]);
+  const legs = [
+    [-0.2, 0.06],
+    [0.2, 0.06],
+    [-0.2, -0.08],
+    [0.2, -0.08],
+  ].map(([x, z]) => {
+    const l = leg(body, x, -0.02, z, 0.16, 0.02, CRAB.claw);
+    l.rotation.z = Math.sign(x) * 0.7;
+    return l;
+  });
+  const head = new THREE.Group();
+  head.position.set(0, 0.02, 0.16);
+  body.add(head);
+  const eyes: THREE.Mesh[] = [];
+  for (const side of [-1, 1]) {
+    part(head, geo.cylinder, CRAB.shell, [0.06 * side, 0.1, 0], [0.012, 0.14, 0.012]);
+    eyes.push(part(head, geo.smallSphere, CRAB.eye, [0.06 * side, 0.18, 0.01], 0.03));
+    part(head, geo.sphere, CRAB.claw, [0.22 * side, -0.01, 0.08], [0.09, 0.06, 0.08]);
+    part(head, geo.sphere, CRAB.light, [0.26 * side, 0.01, 0.13], [0.04, 0.03, 0.05]);
+  }
+  const tail = new THREE.Group();
+  body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+export const SEAL_COLORS = {
+  grey: { body: '#c9cfe0', belly: '#e8ebf5', nose: '#6e6a8a' },
+  pearl: { body: '#fbf7ff', belly: '#ffffff', nose: '#c9a8e8' },
+};
+
+/** Chubby seal lounging on its belly; flippers act as its "legs". Facing +Z. */
+export function createSeal(colors: { body: string; belly: string; nose: string }): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, colors.body, [0, 0.28, 0], [0.32, 0.27, 0.55]);
+  part(body, geo.sphere, colors.belly, [0, 0.2, 0.08], [0.26, 0.18, 0.42]);
+  const head = new THREE.Group();
+  head.position.set(0, 0.5, 0.45);
+  body.add(head);
+  part(head, geo.sphere, colors.body, [0, 0, 0], [0.2, 0.18, 0.2]);
+  part(head, geo.sphere, colors.belly, [0, -0.04, 0.13], [0.11, 0.08, 0.1]);
+  part(head, geo.smallSphere, colors.nose, [0, -0.01, 0.22], 0.035);
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#3d3350', [0.09 * side, 0.06, 0.14], 0.035));
+  for (const side of [-1, 1]) part(head, geo.cylinder, '#ffffff', [0.08 * side, -0.05, 0.2], [0.004, 0.12, 0.004]).rotation.z = Math.PI / 2;
+  const flipper = (x: number, z: number) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.12, z);
+    body.add(p);
+    part(p, geo.sphere, colors.body, [Math.sign(x) * 0.06, -0.06, 0], [0.12, 0.03, 0.09]);
+    return p;
+  };
+  const legs = [flipper(-0.26, 0.22), flipper(0.26, 0.22), flipper(-0.08, -0.55), flipper(0.08, -0.55)];
+  const tail = new THREE.Group();
+  body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+/** Beach seagull standing on orange legs. Feet at y = 0, facing +Z. */
+export function createSeagull(): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  part(body, geo.sphere, '#ffffff', [0, 0.42, 0], [0.18, 0.17, 0.3]);
+  for (const side of [-1, 1]) part(body, geo.sphere, '#c9cfe0', [0.15 * side, 0.46, -0.04], [0.05, 0.12, 0.26]);
+  part(body, geo.sphere, '#8a8fa8', [0, 0.47, -0.3], [0.1, 0.04, 0.12]);
+  const legs = [
+    leg(body, -0.06, 0.28, 0.02, 0.28, 0.018, '#ffb870'),
+    leg(body, 0.06, 0.28, 0.02, 0.28, 0.018, '#ffb870'),
+    leg(body, -0.06, 0.28, 0.0, 0.28, 0.018, '#ffb870'),
+    leg(body, 0.06, 0.28, 0.0, 0.28, 0.018, '#ffb870'),
+  ];
+  const head = new THREE.Group();
+  head.position.set(0, 0.62, 0.22);
+  body.add(head);
+  part(head, geo.sphere, '#ffffff', [0, 0, 0], 0.11);
+  part(head, geo.cone, '#ffd27a', [0, -0.02, 0.15], [0.03, 0.14, 0.025]).rotation.x = Math.PI / 2;
+  const eyes = [-1, 1].map((side) => part(head, geo.smallSphere, '#3d3350', [0.07 * side, 0.03, 0.06], 0.02));
+  const tail = new THREE.Group();
+  body.add(tail);
+  return { root, body, head, neck: null, tail, legs, eyes };
 }

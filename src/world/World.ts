@@ -182,6 +182,7 @@ export class World implements Terrain {
     const hillScale = blend(b, (d) => d.hillHeight);
     const pondScale = blend(b, (d) => d.pondAmount);
     const pondStart = blend(b, (d) => d.pondCoverage);
+    const duneScale = blend(b, (d) => d.duneHeight);
     const hilliness = smoothstep(0.42, 0.72, this.hillNoise.fbm(x / 50, z / 50, 3));
     const bumps = (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT;
     // Pond basins: only on the flat meadows between hills, and never at spawn.
@@ -189,7 +190,13 @@ export class World implements Terrain {
       smoothstep(pondStart, pondStart + 0.12, this.pondNoise.fbm(x / 40, z / 40, 2)) *
       (1 - smoothstep(0, 0.25, hilliness)) *
       smoothstep(POND_CLEAR_RADIUS, POND_CLEAR_RADIUS + 10, Math.hypot(x, z));
-    return hilliness * HILL_HEIGHT * hillScale + bumps - pond * POND_DEPTH * pondScale;
+    // Dunes: long ridges, stretched along one axis like wind-swept sand.
+    let dunes = 0;
+    if (duneScale > 0.01) {
+      const ridge = 1 - Math.abs(this.hillNoise.fbm(x / 30 + 11.3, z / 85 - 7.1, 2) * 2 - 1);
+      dunes = ridge * ridge * duneScale;
+    }
+    return hilliness * HILL_HEIGHT * hillScale + bumps + dunes - pond * POND_DEPTH * pondScale;
   }
 
   /** The two nearest biomes at a point and how dominant the nearest is (shared object: read it right away). */
@@ -405,7 +412,7 @@ export class World implements Terrain {
         const b = this.biomes.sample(x, z);
         const here: BiomeId = rBiome < b.t ? b.a : b.b;
         // Keep trees off the beach; stones may sit half in the water (wetlands plant in it).
-        if (here !== 'wetlands' && ground < WATER_LEVEL - 0.1) continue;
+        if (here !== 'wetlands' && here !== 'coast' && ground < WATER_LEVEL - 0.1) continue;
 
         const forest = this.forestNoise.fbm(x / 45, z / 45);
         const rocky = this.terrainAt(x, z);
@@ -413,8 +420,52 @@ export class World implements Terrain {
 
         let kind: PropKind;
         let scale: number;
-        if (here === 'wetlands') {
-          const depth = WATER_LEVEL - ground;
+        const depth = WATER_LEVEL - ground;
+        if (here === 'dunes') {
+          // Wind-swept sand: cacti, sandstone, grass tufts, palms around the rare oases.
+          const oasis = depth > -1.2 && dry;
+          if (oasis && rSpawn < 0.25) {
+            kind = 'palmTree';
+            scale = 0.85 + rScale * 0.4;
+          } else if (rSpawn < 0.07 + smoothstep(0.5, 0.75, forest) * 0.1 && dry) {
+            kind = 'cactus';
+            scale = 0.9 + rScale * 0.8;
+          } else if (rSpawn < 0.24 && rSpawn >= 0.18) {
+            kind = 'sandstone';
+            scale = 0.8 + rScale * 1.3;
+          } else if (rSpawn > 0.72 && dry) {
+            kind = 'duneGrass';
+            scale = 0.8 + rScale * 0.6;
+          } else {
+            continue;
+          }
+        } else if (here === 'coast') {
+          // Beaches around big lagoons: shells by the water, palms and grass further up.
+          if (depth > 0.2) {
+            if (rSpawn >= 0.015) continue;
+            kind = 'stone';
+            scale = 0.8 + rScale * 0.8;
+          } else if (depth > -1.4) {
+            if (rSpawn < 0.2) {
+              kind = 'shells';
+              scale = 1.8 + rScale * 1.4;
+            } else if (rSpawn < 0.2 && dry) {
+              kind = 'palmTree';
+              scale = 0.9 + rScale * 0.4;
+            } else continue;
+          } else if (rSpawn < 0.07) {
+            kind = 'palmTree';
+            scale = 0.85 + rScale * 0.45;
+          } else if (rSpawn < 0.17) {
+            kind = 'duneGrass';
+            scale = 0.8 + rScale * 0.6;
+          } else if (rSpawn < 0.19) {
+            kind = 'flowers';
+            scale = 0.7 + rScale * 0.4;
+          } else {
+            continue;
+          }
+        } else if (here === 'wetlands') {
           if (depth > 0.3) {
             // Open water: lily pads gather in drifting rafts, some in flower.
             const lilies = 0.04 + smoothstep(0.42, 0.68, forest) * 0.4;

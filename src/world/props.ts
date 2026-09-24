@@ -1,7 +1,20 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type PropKind = 'roundTree' | 'pineTree' | 'stone' | 'blossomTree' | 'flowers' | 'reeds' | 'lilyPad' | 'waterLily';
+export type PropKind =
+  | 'roundTree'
+  | 'pineTree'
+  | 'stone'
+  | 'blossomTree'
+  | 'flowers'
+  | 'reeds'
+  | 'lilyPad'
+  | 'waterLily'
+  | 'cactus'
+  | 'sandstone'
+  | 'duneGrass'
+  | 'palmTree'
+  | 'shells';
 
 /** One placed prop. Its instance matrices are recomposed when it wobbles. */
 export interface Prop {
@@ -132,7 +145,98 @@ function buildDefs(): Record<PropKind, PropDef> {
   );
   const lilyHeart = new THREE.SphereGeometry(0.05, 6, 4).translate(0.05, 0.08, 0.05);
 
+  // Cactus: a chubby rounded column with two arms and a little flower on top.
+  const capsule = (r: number, h: number) => new THREE.CapsuleGeometry(r, h, 5, 12);
+  const cactusBody = mergeGeometries([
+    capsule(0.32, 1.1).translate(0, 0.85, 0),
+    capsule(0.16, 0.35).rotateZ(Math.PI / 2).translate(0.38, 0.8, 0),
+    capsule(0.15, 0.4).translate(0.62, 1.05, 0),
+    capsule(0.14, 0.3).rotateZ(Math.PI / 2).translate(-0.36, 1.05, 0),
+    capsule(0.13, 0.32).translate(-0.56, 1.25, 0),
+  ]);
+  const cactusFlower = mergeGeometries([
+    new THREE.SphereGeometry(0.12, 8, 6).scale(1, 0.6, 1).translate(0, 1.72, 0),
+    new THREE.SphereGeometry(0.08, 8, 6).scale(1, 0.6, 1).translate(0.62, 1.47, 0),
+  ]);
+
+  // Sandstone: a stack of soft, rounded slabs.
+  const sandstone = mergeGeometries([
+    new THREE.SphereGeometry(0.75, 10, 7).scale(1, 0.45, 0.85).translate(0, 0.25, 0),
+    new THREE.SphereGeometry(0.55, 10, 7).scale(1, 0.45, 0.85).translate(0.1, 0.62, -0.05),
+    new THREE.SphereGeometry(0.35, 10, 7).scale(1, 0.5, 0.85).translate(0.05, 0.9, 0),
+  ]);
+
+  // Dune grass: a spray of long thin blades.
+  const duneGrass = mergeGeometries(
+    Array.from({ length: 7 }, (_, i) => {
+      const a = (i / 7) * Math.PI * 2;
+      const h = 0.45 + (i % 3) * 0.12;
+      return new THREE.ConeGeometry(0.03, h, 3, 1, true).translate(0, h / 2, 0).rotateZ(0.35).rotateY(a);
+    }),
+  );
+
+  // Palm tree: a gently curving trunk of stacked rings, fronds and coconuts.
+  const palmTrunk = mergeGeometries(
+    Array.from({ length: 7 }, (_, i) => {
+      const y = i * 0.45;
+      const lean = (i / 7) ** 2 * 0.9;
+      return new THREE.CylinderGeometry(0.16 - i * 0.008, 0.19 - i * 0.008, 0.48, 8).translate(lean, y + 0.24, 0);
+    }),
+  );
+  const palmFronds = mergeGeometries(
+    Array.from({ length: 7 }, (_, i) => {
+      const a = (i / 7) * Math.PI * 2;
+      return new THREE.SphereGeometry(1, 10, 6)
+        .scale(0.95, 0.05, 0.24)
+        .translate(0.85, -0.18, 0)
+        .rotateZ(-0.35)
+        .rotateY(a)
+        .translate(0.9, 3.25, 0);
+    }),
+  );
+  const coconuts = mergeGeometries(
+    [0, 2.1, 4.2].map((a) => new THREE.SphereGeometry(0.11, 8, 6).translate(0.9 + Math.cos(a) * 0.14, 3.08, Math.sin(a) * 0.14)),
+  );
+
+  // Seashells: a scallop and a little spiral cone.
+  const shells = mergeGeometries([
+    new THREE.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.4, 0.9),
+    new THREE.ConeGeometry(0.07, 0.2, 7).rotateZ(Math.PI / 2).translate(0.3, 0.06, 0.12),
+  ]);
+
   return {
+    cactus: {
+      radius: 0.45,
+      wobble: 0.1,
+      parts: [
+        { geometry: cactusBody, material: mat('#ffffff'), palette: ['#9fd9a8', '#a8e0c4', '#b5dca0'] },
+        { geometry: cactusFlower, material: mat('#ffffff'), palette: ['#ff9fc0', '#ffb8d2', '#ffd27a'] },
+      ],
+    },
+    sandstone: {
+      radius: 0.7,
+      wobble: 0.03,
+      parts: [{ geometry: sandstone, material: mat('#ffffff'), palette: ['#f7c6a8', '#f3b8a8', '#f9d3b5'] }],
+    },
+    duneGrass: {
+      radius: 0,
+      wobble: 0,
+      parts: [{ geometry: duneGrass, material: mat('#ffffff'), palette: ['#c9d9a0', '#d9d6a0', '#b8d4a8'] }],
+    },
+    palmTree: {
+      radius: 0.45,
+      wobble: 0.2,
+      parts: [
+        { geometry: palmTrunk, material: mat('#d8b394') },
+        { geometry: palmFronds, material: mat('#ffffff'), palette: ['#8fd4a0', '#9fdcb0', '#a6d98f'] },
+        { geometry: coconuts, material: mat('#b98c6e') },
+      ],
+    },
+    shells: {
+      radius: 0,
+      wobble: 0,
+      parts: [{ geometry: shells, material: mat('#ffffff'), palette: ['#ffd6e0', '#ffe8d0', '#f7c8d8', '#ffffff'] }],
+    },
     reeds: {
       radius: 0,
       wobble: 0,

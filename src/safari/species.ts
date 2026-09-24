@@ -21,7 +21,15 @@ export type SpeciesId =
   | 'dragonfly'
   | 'golden-duck'
   | 'moon-fox'
-  | 'golden-frog';
+  | 'golden-frog'
+  | 'camel'
+  | 'fennec'
+  | 'lizard'
+  | 'rainbow-lizard'
+  | 'crab'
+  | 'seal'
+  | 'seagull'
+  | 'pearl-seal';
 
 export interface Behavior {
   id: string;
@@ -66,6 +74,9 @@ const BIRD_BEHAVIORS = [b('flying', 'Flying'), b('gliding', 'Gliding'), b('start
 const DUCK_BEHAVIORS = [b('swimming', 'Swimming'), b('dabbling', 'Dabbling'), b('quacking', 'Quacking'), b('family', 'Family portrait'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const FOX_BEHAVIORS = [b('trotting', 'Trotting'), b('sitting', 'Sitting'), b('pouncing', 'Pouncing'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('hopping', 'Hopping'), b('curious', 'Curious'), b('startled', 'Diving in')];
+// Tier-2 animals reuse the ground-animal behaviour sets, so their ids match those sets (the labels are their own).
+const LIZARD_BEHAVIORS = [b('trotting', 'Scurrying'), b('sitting', 'Basking'), b('pouncing', 'Snapping'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
+const SEAL_BEHAVIORS = [b('shuffling', 'Flopping'), b('sniffing', 'Sunbathing'), b('curious', 'Curious'), b('startled', 'Startled')];
 const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
@@ -203,6 +214,80 @@ export const SPECIES: Species[] = [
     rare: true,
     legendary: true,
     behaviors: FROG_BEHAVIORS,
+  },
+  {
+    id: 'camel',
+    name: 'Camel',
+    biome: 'dunes',
+    emoji: '🐫',
+    hint: 'Plods between the dunes in little caravans.',
+    rare: false,
+    behaviors: [b('grazing', 'Nibbling'), b('walking', 'Plodding'), b('curious', 'Curious'), b('bounding', 'Galloping'), b('sleeping', 'Resting'), b('startled', 'Startled')],
+  },
+  {
+    id: 'fennec',
+    name: 'Fennec Fox',
+    biome: 'dunes',
+    emoji: '🦊',
+    hint: 'A sandy little fox with a keen nose.',
+    rare: false,
+    behaviors: FOX_BEHAVIORS,
+  },
+  {
+    id: 'lizard',
+    name: 'Sand Lizard',
+    biome: 'dunes',
+    emoji: '🦎',
+    hint: 'Basks on the warm sand, then zips away.',
+    rare: false,
+    behaviors: LIZARD_BEHAVIORS,
+  },
+  {
+    id: 'rainbow-lizard',
+    name: 'Rainbow Lizard',
+    biome: 'dunes',
+    emoji: '🦎',
+    hint: 'A legend of the dunes that shimmers in every colour.',
+    rare: true,
+    legendary: true,
+    behaviors: LIZARD_BEHAVIORS,
+  },
+  {
+    id: 'crab',
+    name: 'Beach Crab',
+    biome: 'coast',
+    emoji: '🦀',
+    hint: 'Scuttles by the water. Tucks in when startled.',
+    rare: false,
+    behaviors: [b('shuffling', 'Scuttling'), b('sniffing', 'Digging'), b('curled', 'Hiding'), b('curious', 'Curious')],
+  },
+  {
+    id: 'seal',
+    name: 'Seal',
+    biome: 'coast',
+    emoji: '🦭',
+    hint: 'Lounges on the beach, flops into the sea if bothered.',
+    rare: false,
+    behaviors: SEAL_BEHAVIORS,
+  },
+  {
+    id: 'seagull',
+    name: 'Seagull',
+    biome: 'coast',
+    emoji: '🕊️',
+    hint: 'Struts along the shore looking for snacks.',
+    rare: false,
+    behaviors: [b('trotting', 'Strutting'), b('sitting', 'Resting'), b('pouncing', 'Pecking'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')],
+  },
+  {
+    id: 'pearl-seal',
+    name: 'Pearl Seal',
+    biome: 'coast',
+    emoji: '🦭',
+    hint: 'A legend of the coast, pale and glowing like a pearl.',
+    rare: true,
+    legendary: true,
+    behaviors: SEAL_BEHAVIORS,
   },
 ];
 

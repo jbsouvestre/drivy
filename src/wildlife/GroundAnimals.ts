@@ -1,18 +1,51 @@
 import * as THREE from 'three';
 import type { SpeciesId, Subject } from '../safari/species';
 import type { Collider } from '../world/props';
+import type { BiomeId } from '../world/biomes';
 import type { World } from '../world/World';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
-import { createDeer, createFox, createHedgehog, FOX_COLORS, makeLegendary, type GroundModel } from './models';
+import {
+  createCamel,
+  createCrab,
+  createDeer,
+  createFox,
+  createHedgehog,
+  createLizard,
+  createSeagull,
+  createSeal,
+  FOX_COLORS,
+  LIZARD_COLORS,
+  makeLegendary,
+  SEAL_COLORS,
+  type GroundModel,
+} from './models';
 
-type Kind = 'deer' | 'fox' | 'hedgehog' | 'moonFox';
+type Kind =
+  | 'deer'
+  | 'fox'
+  | 'hedgehog'
+  | 'moonFox'
+  | 'camel'
+  | 'fennec'
+  | 'lizard'
+  | 'rainbowLizard'
+  | 'crab'
+  | 'seal'
+  | 'seagull'
+  | 'pearlSeal';
 /** Which behaviour/animation set an animal uses (a legendary can reuse a regular one). */
 type Behaves = 'deer' | 'fox' | 'hedgehog';
 
 interface KindDef {
   species: SpeciesId;
   behaves: Behaves;
+  /** The biome it lives in. */
+  biome: BiomeId;
+  /** Beach dwellers: only spawn and wander within reach of water. */
+  nearWater?: boolean;
+  /** How far the body drops when lying down to sleep. */
+  sleepDrop: number;
   /** Legendaries: base chance per spawn check (scaled by difficulty) that one turns up. */
   legendaryChance?: number;
   create: () => GroundModel;
@@ -40,6 +73,8 @@ const KINDS: Record<Kind, KindDef> = {
   deer: {
     species: 'deer',
     behaves: 'deer',
+    biome: 'blossom',
+    sleepDrop: -0.62,
     create: createDeer,
     scale: 1.25,
     walkSpeed: 1.3,
@@ -57,6 +92,8 @@ const KINDS: Record<Kind, KindDef> = {
   fox: {
     species: 'fox',
     behaves: 'fox',
+    biome: 'blossom',
+    sleepDrop: -0.24,
     create: createFox,
     scale: 1.3,
     walkSpeed: 2,
@@ -74,6 +111,8 @@ const KINDS: Record<Kind, KindDef> = {
   hedgehog: {
     species: 'hedgehog',
     behaves: 'hedgehog',
+    biome: 'blossom',
+    sleepDrop: -0.1,
     create: createHedgehog,
     scale: 1.3,
     walkSpeed: 0.6,
@@ -92,6 +131,8 @@ const KINDS: Record<Kind, KindDef> = {
   moonFox: {
     species: 'moon-fox',
     behaves: 'fox',
+    biome: 'blossom',
+    sleepDrop: -0.24,
     legendaryChance: 0.006,
     create: () => {
       const model = createFox(FOX_COLORS.moon);
@@ -111,9 +152,181 @@ const KINDS: Record<Kind, KindDef> = {
     reaction: 'flee',
     gait: 5,
   },
+
+  // ---- Candy Dunes
+  camel: {
+    species: 'camel',
+    behaves: 'deer',
+    biome: 'dunes',
+    sleepDrop: -0.95,
+    create: createCamel,
+    scale: 1.2,
+    walkSpeed: 1,
+    fleeSpeed: 5.5,
+    notice: 20,
+    groupSize: [1, 3],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 2.1,
+    radius: 0.9,
+    reaction: 'flee',
+    gait: 2.6,
+  },
+  fennec: {
+    species: 'fennec',
+    behaves: 'fox',
+    biome: 'dunes',
+    sleepDrop: -0.24,
+    create: () => createFox(FOX_COLORS.fennec),
+    scale: 1.15,
+    walkSpeed: 2.2,
+    fleeSpeed: 7,
+    notice: 17,
+    groupSize: [1, 1],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.7,
+    radius: 0.42,
+    reaction: 'flee',
+    gait: 5.5,
+  },
+  lizard: {
+    species: 'lizard',
+    behaves: 'fox',
+    biome: 'dunes',
+    sleepDrop: -0.05,
+    create: () => createLizard(LIZARD_COLORS.mint),
+    scale: 1.6,
+    walkSpeed: 2.4,
+    fleeSpeed: 7.5,
+    notice: 9,
+    groupSize: [1, 1],
+    maxGroups: 3,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.3,
+    radius: 0.35,
+    reaction: 'flee',
+    gait: 12,
+  },
+  rainbowLizard: {
+    species: 'rainbow-lizard',
+    behaves: 'fox',
+    biome: 'dunes',
+    sleepDrop: -0.05,
+    legendaryChance: 0.02,
+    create: () => {
+      const model = createLizard(LIZARD_COLORS.rainbow);
+      makeLegendary(model.root, 0.45);
+      return model;
+    },
+    scale: 1.7,
+    walkSpeed: 2.4,
+    fleeSpeed: 8,
+    notice: 12,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.3,
+    radius: 0.35,
+    reaction: 'flee',
+    gait: 12,
+  },
+
+  // ---- Sherbet Coast
+  crab: {
+    species: 'crab',
+    behaves: 'hedgehog',
+    biome: 'coast',
+    nearWater: true,
+    sleepDrop: -0.05,
+    create: createCrab,
+    scale: 1.5,
+    walkSpeed: 1,
+    fleeSpeed: 0,
+    notice: 8,
+    groupSize: [1, 2],
+    maxGroups: 3,
+    nocturnal: false,
+    sleepsAtNight: false,
+    height: 0.4,
+    radius: 0.4,
+    reaction: 'curl',
+    gait: 14,
+  },
+  seal: {
+    species: 'seal',
+    behaves: 'hedgehog',
+    biome: 'coast',
+    nearWater: true,
+    sleepDrop: -0.05,
+    create: () => createSeal(SEAL_COLORS.grey),
+    scale: 1.4,
+    walkSpeed: 0.5,
+    fleeSpeed: 2.5,
+    notice: 14,
+    groupSize: [1, 2],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.7,
+    radius: 0.6,
+    reaction: 'flee',
+    gait: 6,
+  },
+  seagull: {
+    species: 'seagull',
+    behaves: 'fox',
+    biome: 'coast',
+    nearWater: true,
+    sleepDrop: -0.2,
+    create: createSeagull,
+    scale: 1.3,
+    walkSpeed: 1.4,
+    fleeSpeed: 6,
+    notice: 13,
+    groupSize: [1, 3],
+    maxGroups: 2,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.8,
+    radius: 0.4,
+    reaction: 'flee',
+    gait: 9,
+  },
+  pearlSeal: {
+    species: 'pearl-seal',
+    behaves: 'hedgehog',
+    biome: 'coast',
+    nearWater: true,
+    sleepDrop: -0.05,
+    legendaryChance: 0.015,
+    create: () => {
+      const model = createSeal(SEAL_COLORS.pearl);
+      makeLegendary(model.root, 0.4);
+      return model;
+    },
+    scale: 1.5,
+    walkSpeed: 0.5,
+    fleeSpeed: 2.5,
+    notice: 16,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: false,
+    sleepsAtNight: true,
+    height: 0.7,
+    radius: 0.6,
+    reaction: 'flee',
+    gait: 6,
+  },
 };
 
 /** Animals appear in this ring around the player (inside the right biome) and leave beyond DESPAWN_RADIUS. */
+/** Animal kinds considered per spawn check (checks run 4× a second). */
+const KINDS_PER_CHECK = 3;
 const SPAWN_MIN = 14;
 const SPAWN_MAX = 36;
 const DESPAWN_RADIUS = 55;
@@ -125,7 +338,6 @@ const FLEE_TIME = 3.5;
 const CURL_TIME = 4;
 const APPEAR_TIME = 0.5;
 const LEAVE_TIME = 0.4;
-const EYE_SIZE = { deer: 0.03, fox: 0.026, hedgehog: 0.022 };
 
 type State = 'idle' | 'walk' | 'graze' | 'sit' | 'pounce' | 'sniff' | 'sleep' | 'shock' | 'flee' | 'curl';
 
@@ -155,6 +367,9 @@ interface Animal {
   fleeDir: THREE.Vector3;
   leader: Animal | null;
   time: number;
+  /** The model's resting body height and eye size, to animate relative to. */
+  restY: number;
+  eyeSize: number;
 }
 
 const _near: Collider[] = [];
@@ -170,6 +385,7 @@ export class GroundAnimals {
   private readonly animals: Animal[] = [];
   private manageTimer = 0;
   private sleepy = false;
+  private kindCursor = 0;
 
   constructor(private readonly world: World) {}
 
@@ -214,7 +430,7 @@ export class GroundAnimals {
     this.sleepy = darkness > 0.75;
     this.manageTimer -= dt;
     if (this.manageTimer <= 0) {
-      this.manageTimer = 1;
+      this.manageTimer = 0.25;
       this.manage(focus, darkness);
     }
     for (let i = this.animals.length - 1; i >= 0; i--) {
@@ -244,26 +460,39 @@ export class GroundAnimals {
       if (far || bedtime) a.leaving = 0;
     }
 
-    for (const kind of Object.keys(KINDS) as Kind[]) {
+    // Which biomes are around the player? Only those animals are worth trying to place.
+    const around = new Set<BiomeId>();
+    for (let k = 0; k < 5; k++) {
+      const ang = (k / 4) * Math.PI * 2;
+      const r = k === 4 ? 0 : 24;
+      around.add(this.world.dominantBiome(focus.x + Math.cos(ang) * r, focus.z + Math.sin(ang) * r));
+    }
+
+    // Try a few kinds per check (round-robin), so spawning never piles into one frame.
+    const kinds = Object.keys(KINDS) as Kind[];
+    for (let n = 0; n < KINDS_PER_CHECK; n++) {
+      const kind = kinds[this.kindCursor++ % kinds.length];
       const def = KINDS[kind];
+      if (!around.has(def.biome)) continue;
       if (def.nocturnal && darkness < 0.4) continue;
       if (def.legendaryChance !== undefined && Math.random() > rareChance(def.legendaryChance, this.world.difficultyAt(focus.x, focus.z))) continue;
       const groups = this.animals.filter((a) => a.kind === kind && !a.leader && a.leaving < 0).length;
       if (groups >= def.maxGroups) continue;
-      const spot = this.findSpot(focus);
+      const spot = this.findSpot(focus, def);
       if (spot) this.spawnGroup(kind, spot);
     }
   }
 
-  /** A dry, open spot deep in Blossom Woods, away from other animals. */
-  private findSpot(focus: THREE.Vector3): THREE.Vector3 | null {
+  /** A dry, open spot deep in the animal's biome (by the water for beach dwellers), away from others. */
+  private findSpot(focus: THREE.Vector3, def: KindDef): THREE.Vector3 | null {
     for (let attempt = 0; attempt < 14; attempt++) {
       const ang = Math.random() * Math.PI * 2;
       const r = SPAWN_MIN + Math.random() * (SPAWN_MAX - SPAWN_MIN);
       const x = focus.x + Math.cos(ang) * r;
       const z = focus.z + Math.sin(ang) * r;
-      if (this.world.biomeWeight(x, z, 'blossom') < 0.7) continue;
+      if (this.world.biomeWeight(x, z, def.biome) < 0.7) continue;
       if (!this.walkable(x, z, 1.2)) continue;
+      if (def.nearWater && !this.nearWater(x, z)) continue;
       if (this.animals.some((a) => Math.hypot(a.pos.x - x, a.pos.z - z) < 9)) continue;
       return new THREE.Vector3(x, 0, z);
     }
@@ -277,8 +506,11 @@ export class GroundAnimals {
     const heading = Math.random() * Math.PI * 2;
     let leader: Animal | null = null;
     for (let i = 0; i < size; i++) {
-      const x = at.x + (i === 0 ? 0 : (Math.random() - 0.5) * 3);
-      const z = at.z + (i === 0 ? 0 : (Math.random() - 0.5) * 3);
+      // Spread the group out: followers start a size-scaled distance from the leader.
+      const ang = Math.random() * Math.PI * 2;
+      const spread = i === 0 ? 0 : def.radius * def.scale * (2.4 + Math.random() * 1.5);
+      const x = at.x + Math.cos(ang) * spread;
+      const z = at.z + Math.sin(ang) * spread;
       if (i > 0 && !this.walkable(x, z, 0.8)) continue;
       const a = this.makeAnimal(kind, x, z, heading + (Math.random() - 0.5));
       a.leader = leader;
@@ -321,6 +553,8 @@ export class GroundAnimals {
       fleeDir: new THREE.Vector3(),
       leader: null,
       time: Math.random() * 10,
+      restY: model.body.position.y,
+      eyeSize: model.eyes[0].scale.x,
     };
     this.animals.push(a);
     return a;
@@ -422,8 +656,11 @@ export class GroundAnimals {
   /** Pick the next idle activity (followers keep close to their leader). */
   private decide(a: Animal): void {
     const leader = a.leader;
-    if (leader && Math.hypot(leader.pos.x - a.pos.x, leader.pos.z - a.pos.z) > 4) {
-      a.target.set(leader.pos.x + (Math.random() - 0.5) * 2.5, 0, leader.pos.z + (Math.random() - 0.5) * 2.5);
+    // Followers keep near their leader, but never on top of it (a gap scaled to their size).
+    const gap = a.def.radius * a.def.scale * 2.6;
+    if (leader && Math.hypot(leader.pos.x - a.pos.x, leader.pos.z - a.pos.z) > Math.max(4, gap * 2)) {
+      const ang = Math.random() * Math.PI * 2;
+      a.target.set(leader.pos.x + Math.cos(ang) * gap, 0, leader.pos.z + Math.sin(ang) * gap);
       this.setState(a, 'walk', 8);
       return;
     }
@@ -454,10 +691,19 @@ export class GroundAnimals {
       const r = 2 + Math.random() * (range - 2);
       const x = a.pos.x + Math.cos(ang) * r;
       const z = a.pos.z + Math.sin(ang) * r;
-      if (this.world.biomeWeight(x, z, 'blossom') > 0.4 && this.walkable(x, z, 0.8)) {
+      if (this.world.biomeWeight(x, z, a.def.biome) > 0.4 && this.walkable(x, z, 0.8) && (!a.def.nearWater || this.nearWater(x, z))) {
         a.target.set(x, 0, z);
         return true;
       }
+    }
+    return false;
+  }
+
+  /** Water within a few steps (for beach dwellers). */
+  private nearWater(x: number, z: number): boolean {
+    for (let k = 0; k < 6; k++) {
+      const ang = (k / 6) * Math.PI * 2;
+      if (this.world.heightAt(x + Math.cos(ang) * 5, z + Math.sin(ang) * 5) < this.world.waterLevel - 0.1) return true;
     }
     return false;
   }
@@ -494,6 +740,7 @@ export class GroundAnimals {
     if (a.state === 'shock') return 'startled';
     if (a.def.behaves === 'hedgehog') {
       if (a.state === 'curl') return 'curled';
+      if (a.state === 'flee') return 'startled';
       if (a.curiousTime > 0) return 'curious';
       return a.state === 'sniff' ? 'sniffing' : 'shuffling';
     }
@@ -533,7 +780,7 @@ export class GroundAnimals {
 
     // Reset pose, then layer on the current state.
     body.rotation.set(0, 0, 0);
-    body.position.y = a.def.behaves === 'hedgehog' ? 0.22 : 0;
+    body.position.y = a.restY;
     body.scale.set(1, 1, 1);
     head.rotation.set(0, 0, 0);
     head.scale.setScalar(1);
@@ -555,14 +802,14 @@ export class GroundAnimals {
         break;
       case 'sit':
         body.rotation.x = -0.5;
-        body.position.y = -0.07;
+        body.position.y = a.restY - 0.07;
         legs[2].rotation.x = legs[3].rotation.x = -1.2;
         tail.rotation.y = 1.1;
         break;
       case 'pounce':
         if (a.stateTime < 0.5) {
           body.rotation.x = 0.2; // crouch, bum wiggle
-          body.position.y = -0.06;
+          body.position.y = a.restY - 0.06;
           tail.rotation.y = Math.sin(a.time * 25) * 0.3;
         } else body.rotation.x = -0.3 * Math.sin(((a.stateTime - 0.5) / 0.8) * Math.PI);
         break;
@@ -571,7 +818,7 @@ export class GroundAnimals {
         break;
       case 'sleep':
         // Lie down: legs tucked under, head resting.
-        body.position.y = a.def.behaves === 'deer' ? -0.62 : -0.24;
+        body.position.y = a.restY + a.def.sleepDrop;
         legs.forEach((leg, i) => {
           // Front legs fold back, hind legs fold forward: tucked under the body.
           leg.rotation.x = i < 2 ? 1.45 : -1.45;
@@ -588,7 +835,7 @@ export class GroundAnimals {
         body.rotation.x = 0.3;
         head.scale.setScalar(0.01);
         for (const leg of legs) leg.scale.setScalar(0.01);
-        body.position.y = 0.2 + Math.sin(a.time * 40) * 0.008;
+        body.position.y = a.restY - 0.02 + Math.sin(a.time * 40) * 0.008;
         break;
       case 'flee':
         neckDip = -0.2;
@@ -602,7 +849,7 @@ export class GroundAnimals {
       head.rotation.z = 0.3 + Math.sin(a.time * 2) * 0.08;
       if (a.def.behaves === 'fox') {
         body.rotation.x = -0.5;
-        body.position.y = -0.07;
+        body.position.y = a.restY - 0.07;
         legs[2].rotation.x = legs[3].rotation.x = -1.2;
       }
     }
@@ -613,7 +860,7 @@ export class GroundAnimals {
     if (neck) neck.rotation.x += (neckDip - neck.rotation.x) * Math.min(1, 6 * dt);
 
     const wide = a.state === 'shock' || a.state === 'flee' ? 1.7 : a.curiousTime > 0 ? 1.3 : 1;
-    for (const eye of eyes) eye.scale.setScalar(EYE_SIZE[a.def.behaves] * wide);
+    for (const eye of eyes) eye.scale.setScalar(a.eyeSize * wide);
 
     // Bubbles.
     a.alertTime += dt;

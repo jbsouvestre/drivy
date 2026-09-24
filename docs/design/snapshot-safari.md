@@ -136,7 +136,12 @@ Extra animals in frame add a small "group shot" bonus.
      frogs (lily pads, croak, dive in), herons (wade, fish, fly off), pond turtles (swim, hide in shell), dragonflies.
    - ✅ **Legendaries**: Golden Duck (Meadow), Moon Fox (Blossom Woods, night only), Golden Frog (Wetlands).
      Spawn chance scales with difficulty (`rareChance`), they glow softly, +0.25 score bonus, gold journal badge.
-   - ⏳ Tier 2: Candy Dunes, Sherbet Coast. Tier 3: Snowdrop Hills, Mushroom Hollow.
+   - ✅ **Tier 2** (~400+ units out): **Candy Dunes** (dune ridges via `duneHeight`, cacti, sandstone, dune grass,
+     oasis palms; camels, fennec foxes, sand lizards, legendary Rainbow Lizard) and **Sherbet Coast**
+     (big lagoons, beaches with shells and palms; crabs that tuck in, seals, seagulls, legendary Pearl Seal).
+     Ground animals now declare their biome, beach habitat (`nearWater`) and rest pose, so new species reuse
+     the deer / fox / hedgehog behaviour sets with their own labels.
+   - ⏳ Tier 3: Snowdrop Hills, Mushroom Hollow.
 5. **Nice-to-haves.** Photo requests from a pelican editor, weather (rain → frogs, snow),
    ambient music per biome, cosmetic unlocks from journal completion.
 
