@@ -1,6 +1,6 @@
 /** Game units/sec → displayed km/h. Top speed (24) reads ~108. */
 const KMH_PER_UNIT = 4.5;
-const DIAL_MAX = 120;
+const DIAL_MAX = 160;
 /** The dial arc covers 270° of the circle, starting bottom-left. */
 const SWEEP = 270;
 const START_ANGLE = 135;

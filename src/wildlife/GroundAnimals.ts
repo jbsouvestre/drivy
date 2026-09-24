@@ -490,6 +490,8 @@ const SPAWN_MIN = 14;
 const SPAWN_MAX = 36;
 const DESPAWN_RADIUS = 55;
 const SCARE_RADIUS = 18;
+/** Animals keep at least this far from a road's edge (plus their own clearance). */
+const ROAD_SHYNESS = 3;
 const CHIME_RADIUS = 22;
 const CURIOUS_TIME = 4.5;
 const SHOCK_TIME = 0.45;
@@ -867,8 +869,9 @@ export class GroundAnimals {
     return false;
   }
 
-  /** Dry ground with no tree or stone in the way. */
+  /** Dry ground off the roads, with no tree or stone in the way. */
   private walkable(x: number, z: number, clearance: number): boolean {
+    if (this.world.roadClearance(x, z) < clearance + ROAD_SHYNESS) return false;
     if (this.world.heightAt(x, z) < this.world.waterLevel + 0.2) return false;
     this.world.collidersNear(x, z, clearance + 1.5, _near);
     return _near.every((c) => Math.hypot(c.x - x, c.z - z) > c.radius + clearance);

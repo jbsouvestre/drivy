@@ -20,6 +20,10 @@ export interface Impact {
 }
 
 const MAX_SPEED = 24;
+/** Top speed multiplier on asphalt roads (dirt roads drive like open ground). */
+const ASPHALT_SPEED = 1.35;
+/** Deceleration (units/s²) back down to the normal top speed after leaving asphalt. */
+const OFF_ASPHALT_DRAG = 9;
 const MAX_REVERSE = 9;
 const ACCEL = 16;
 const BRAKE = 34;
@@ -167,6 +171,7 @@ export class Car {
     const fz = Math.cos(this.heading);
     let vf = this.velocity.x * fx + this.velocity.z * fz;
     let vl = this.velocity.x * fz - this.velocity.z * fx;
+    const startVf = vf;
 
     // Hills: gravity pulls back going up and helps going down.
     vf -= SLOPE_GRAVITY * this.slopeForward * dt;
@@ -188,10 +193,19 @@ export class Car {
     vl -= cancelled;
     vf += Math.sign(vf) * Math.abs(cancelled) * (this.handbrake ? HANDBRAKE_REDIRECT : REDIRECT);
     const waterCap = 1 - WATER_SPEED_LOSS * this.wet;
-    vf = THREE.MathUtils.clamp(vf, -MAX_REVERSE * waterCap, MAX_SPEED * waterCap);
-    // Speed limit: ease down rather than stopping dead.
-    const limit = MAX_SPEED * this.speedLimit;
-    if (Math.abs(vf) > limit) vf -= Math.sign(vf) * Math.min(Math.abs(vf) - limit, BRAKE * dt);
+    // Water caps speed outright; on dry land the cap is the asphalt top speed (see below).
+    const hardMax = this.wet > 0 ? MAX_SPEED * waterCap : MAX_SPEED * ASPHALT_SPEED;
+    vf = THREE.MathUtils.clamp(vf, -MAX_REVERSE * waterCap, hardMax);
+    // Only asphalt allows the extra speed. Elsewhere the car can't gain speed above the
+    // normal top speed, and coasts back down to it after leaving the road.
+    const onAsphalt = this.terrain.surfaceAt(this.root.position.x, this.root.position.z) === 'asphalt';
+    const surfaceMax = MAX_SPEED * (onAsphalt ? ASPHALT_SPEED : 1);
+    if (vf > surfaceMax) vf = Math.max(surfaceMax, Math.min(vf, startVf) - OFF_ASPHALT_DRAG * dt);
+    // Speed limit (photo-mode creep): ease down rather than stopping dead.
+    if (this.speedLimit < 1) {
+      const limit = MAX_SPEED * this.speedLimit;
+      if (Math.abs(vf) > limit) vf -= Math.sign(vf) * Math.min(Math.abs(vf) - limit, BRAKE * dt);
+    }
 
     // Steering eases toward the target and gets gentler at high speed.
     const speedFactor = 1 - 0.45 * Math.min(1, Math.abs(vf) / MAX_SPEED);

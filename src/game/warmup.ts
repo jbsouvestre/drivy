@@ -29,6 +29,7 @@ import {
   SNAIL_COLORS,
 } from '../wildlife/models';
 import { propDefs } from '../world/props';
+import { roadMaterials } from '../world/roadMesh';
 
 /**
  * Compile the shaders for every prop and animal up front (behind the splash
@@ -55,6 +56,14 @@ export function warmUpShaders(
       mesh.castShadow = mesh.receiveShadow = true;
       group.add(mesh);
     }
+  }
+
+  // Road surfaces.
+  const roadGeometry = new THREE.PlaneGeometry(1, 1);
+  for (const material of Object.values(roadMaterials())) {
+    const road = new THREE.Mesh(roadGeometry, material);
+    road.receiveShadow = true;
+    group.add(road);
   }
 
   // One of each animal model (their materials are shared per colour, so this covers them all).
@@ -92,4 +101,5 @@ export function warmUpShaders(
   group.traverse((o) => {
     if (o instanceof THREE.InstancedMesh) o.dispose();
   });
+  roadGeometry.dispose();
 }

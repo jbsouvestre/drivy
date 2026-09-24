@@ -4,6 +4,8 @@ import { ValueNoise2D } from './noise';
 import { propDefs, writePropMatrix, type Collider, type Prop, type PropKind } from './props';
 import { biome, BiomeMap, type BiomeId, type BiomeSample, type GroundPalette } from './biomes';
 import { buildWater, WATER_LEVEL } from './Water';
+import { Roads, type RoadKind, type RoadPath } from './Roads';
+import { buildRoadMeshes } from './roadMesh';
 
 export const CHUNK_SIZE = 32;
 /** Chunks kept loaded around the player, in each direction. */
@@ -34,6 +36,14 @@ const TILE_SIZE = 4;
 const SCATTER_CELL = 4;
 /** Keep the spawn point free of props. */
 const SPAWN_CLEAR_RADIUS = 10;
+/** Past a road's edge, the ground eases from road level back to natural terrain over this distance. */
+const ROAD_BLEND = 6;
+/** Ponds give way to a causeway within this distance of a road's edge. */
+const ROAD_POND_CLEAR = 14;
+/** Road surfaces stay at least this far above the water. */
+const ROAD_ABOVE_WATER = 0.35;
+/** Nothing grows within this distance of a road's edge. */
+const ROAD_PROP_CLEAR = 2.5;
 
 const PALETTES: GroundPalette[] = [
   { low: '#bfe8cf', mid: '#dcf2c4', high: '#ffe3c7' }, // mint meadow
@@ -49,6 +59,7 @@ interface Chunk {
   ground: THREE.Mesh;
   water: THREE.Mesh | null;
   props: THREE.InstancedMesh[];
+  roads: THREE.Mesh[];
   colliders: Collider[];
   /** Lily pads and water lilies (no collision), for animals that like to sit on them. */
   pads: Prop[];
@@ -77,6 +88,8 @@ export interface Terrain {
   heightAt(x: number, z: number): number;
   /** Surface height of ponds; ground below it is under water. */
   readonly waterLevel: number;
+  /** The kind of road at a point, or null off-road. */
+  surfaceAt(x: number, z: number): RoadKind | null;
 }
 
 /**
@@ -93,6 +106,7 @@ export class World implements Terrain {
   private hillNoise = new ValueNoise2D(0);
   private pondNoise = new ValueNoise2D(0);
   private biomes = new BiomeMap(0);
+  private readonly roads = new Roads();
   private palette = PALETTES[0];
   private readonly chunks = new Map<number, Chunk>();
   private readonly wobbles = new Map<Prop, Wobble>();
@@ -120,6 +134,7 @@ export class World implements Terrain {
     this.hillNoise = new ValueNoise2D(hash2(seed, 0x4111, 0x1a));
     this.pondNoise = new ValueNoise2D(hash2(seed, 0x9014, 0xd5));
     this.biomes = new BiomeMap(hash2(seed, 0xb10, 0xe5));
+    this.roads.setSeed(seed);
     const rand = mulberry32(hash2(seed, 0x9e37, 0x79b9));
     this.palette = PALETTES[Math.floor(rand() * PALETTES.length)];
     this.parsedPalettes.clear();
@@ -176,10 +191,63 @@ export class World implements Terrain {
 
   /**
    * Ground height at any point: soft rolling hills rising out of flat meadows,
-   * with pond basins dug into the flats, plus a subtle bumpiness. Pure function
+   * with pond basins dug into the flats, plus a subtle bumpiness. Roads flatten
+   * the ground across their width (and cross ponds on causeways). Pure function
    * of (seed, x, z), so it's seamless across chunks and identical on every visit.
    */
   heightAt(x: number, z: number): number {
+    const count = this.roads.nearby(x, z);
+    if (count === 0) return this.naturalHeight(x, z, 1, 1);
+    const hits = this.roads.hits;
+    let minEdge = Infinity;
+    for (let i = 0; i < count; i++) minEdge = Math.min(minEdge, hits[i].edge);
+    const natural = this.naturalHeight(x, z, smoothstep(2, ROAD_POND_CLEAR, minEdge), 1);
+    if (minEdge >= ROAD_BLEND) return natural;
+    // Each road pulls the ground to its own level (the bump- and pond-free height of its
+    // centreline), fading out past its edge. Where roads meet, their levels blend smoothly.
+    let weightSum = 0;
+    let levelSum = 0;
+    let pull = 0;
+    for (let i = 0; i < count; i++) {
+      const hit = hits[i];
+      const w = 1 - smoothstep(1, ROAD_BLEND, hit.edge);
+      if (w <= 0) continue;
+      const level = this.roadLevel(hit.path, hit.index) * (1 - hit.t) + this.roadLevel(hit.path, hit.index + 1) * hit.t;
+      weightSum += w;
+      levelSum += w * level;
+      pull = Math.max(pull, w);
+    }
+    if (weightSum === 0) return natural;
+    return natural + (levelSum / weightSum - natural) * pull;
+  }
+
+  /**
+   * A road's level at centreline sample `i`: the bump- and pond-free terrain
+   * height there, kept above the water. Cached on the path, since every
+   * height query near a road needs it.
+   */
+  private roadLevel(path: RoadPath, i: number): number {
+    let level = path.levels[i];
+    if (Number.isNaN(level)) {
+      level = Math.max(this.naturalHeight(path.xs[i], path.zs[i], 0, 0), WATER_LEVEL + ROAD_ABOVE_WATER);
+      path.levels[i] = level;
+    }
+    return level;
+  }
+
+  /** The kind of road at a point, or null off-road. */
+  surfaceAt(x: number, z: number): RoadKind | null {
+    const road = this.roads.nearest(x, z);
+    return road && road.edge <= 0 ? road.kind : null;
+  }
+
+  /** Distance from a point to the nearest road's edge (negative on a road, Infinity if none nearby). */
+  roadClearance(x: number, z: number): number {
+    return this.roads.clearance(x, z);
+  }
+
+  /** Terrain before roads: `pondKeep` and `bumpKeep` (0–1) scale the ponds and small bumps. */
+  private naturalHeight(x: number, z: number, pondKeep: number, bumpKeep: number): number {
     const b = this.biomes.sample(x, z);
     // Blend the two nearest biomes' terrain settings (no closures: this runs thousands of times per chunk).
     const da = biome(b.a);
@@ -191,9 +259,10 @@ export class World implements Terrain {
     const pondStart = da.pondCoverage * ta + db.pondCoverage * tb;
     const duneScale = da.duneHeight * ta + db.duneHeight * tb;
     const hilliness = smoothstep(0.42, 0.72, this.hillNoise.fbm(x / 50, z / 50, 3));
-    const bumps = (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT;
+    const bumps = bumpKeep > 0 ? (this.hillNoise.sample(x / 11 + 71.3, z / 11 - 13.7) - 0.5) * BUMP_HEIGHT * bumpKeep : 0;
     // Pond basins: only on the flat meadows between hills, and never at spawn.
     const pond =
+      pondKeep *
       smoothstep(pondStart, pondStart + 0.12, this.pondNoise.fbm(x / 40, z / 40, 2)) *
       (1 - smoothstep(0, 0.25, hilliness)) *
       smoothstep(POND_CLEAR_RADIUS, POND_CLEAR_RADIUS + 10, Math.hypot(x, z));
@@ -312,13 +381,18 @@ export class World implements Terrain {
     const colliders: Collider[] = [];
     const pads: Prop[] = [];
     const props = this.buildProps(this.scatter(cx, cz), group, colliders, pads);
+    const x0 = cx * CHUNK_SIZE;
+    const z0 = cz * CHUNK_SIZE;
+    const paths = this.roads.pathsIn(x0, z0, x0 + CHUNK_SIZE, z0 + CHUNK_SIZE, _roadPaths);
+    const roads = buildRoadMeshes(paths, x0, z0, CHUNK_SIZE, (x, z) => this.heightAt(x, z));
+    for (const mesh of roads) group.add(mesh);
     // Chunks never move: bake their transforms once instead of recomputing them every frame.
     // (Prop wobbles write to the instance buffers, not these object transforms.)
     group.traverse((o) => {
       o.updateMatrix();
       o.matrixAutoUpdate = false;
     });
-    return { cx, cz, group, ground, water, props, colliders, pads };
+    return { cx, cz, group, ground, water, props, roads, colliders, pads };
   }
 
   private buildGround(cx: number, cz: number): { mesh: THREE.Mesh; gridHeight: (i: number, j: number) => number } {
@@ -420,6 +494,8 @@ export class World implements Terrain {
         const x = cx * CHUNK_SIZE + i * SCATTER_CELL + margin + rx * (SCATTER_CELL - 2 * margin);
         const z = cz * CHUNK_SIZE + j * SCATTER_CELL + margin + rz * (SCATTER_CELL - 2 * margin);
         if (x * x + z * z < SPAWN_CLEAR_RADIUS * SPAWN_CLEAR_RADIUS) continue;
+        // Roads are kept clear: nothing grows on them or right beside them.
+        if (this.roads.clearance(x, z) < ROAD_PROP_CLEAR) continue;
         const ground = this.heightAt(x, z);
         // Which biome's planting rules apply here (mixed along borders).
         const b = this.biomes.sample(x, z);
@@ -636,8 +712,11 @@ export class World implements Terrain {
     chunk.water?.geometry.dispose();
     // Prop geometries/materials are shared; only the per-chunk instance buffers go.
     for (const mesh of chunk.props) mesh.dispose();
+    for (const mesh of chunk.roads) mesh.geometry.dispose();
   }
 }
+
+const _roadPaths: RoadPath[] = [];
 
 interface ParsedPalette {
   low: THREE.Color;

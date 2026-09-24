@@ -189,6 +189,8 @@ export class WetlandAnimals {
   private isShore(x: number, z: number): boolean {
     const d = this.depth(x, z);
     if (d > -0.05 || d < -0.6) return false;
+    // Not on (or right beside) a causeway.
+    if (this.world.roadClearance(x, z) < 3) return false;
     for (let k = 0; k < 4; k++) {
       const ang = (k / 4) * Math.PI * 2;
       if (this.depth(x + Math.cos(ang) * 1.6, z + Math.sin(ang) * 1.6) > 0.1) return true;

@@ -12,12 +12,6 @@ import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
 import { count, gauge, reporting } from './analytics';
 import { SessionMetrics } from './game/SessionMetrics';
-
-// Error reporting and metrics, live site only. When no DSN was built in, this whole
-// branch (and the Sentry chunk) is dropped from the bundle.
-if (__SENTRY_DSN__ && reporting) {
-  void import('./sentry').then((m) => m.initSentry(__SENTRY_DSN__));
-}
 import type { Collider } from './world/props';
 import { BIOMES, biome, type BiomeId } from './world/biomes';
 import { DayNight } from './world/DayNight';
@@ -43,6 +37,12 @@ import { Drift, PETALS, RAIN, SNOW, SPORES } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
 import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
+
+// Error reporting and metrics, live site only. When no DSN was built in, this whole
+// branch (and the Sentry chunk) is dropped from the bundle.
+if (__SENTRY_DSN__ && reporting) {
+  void import('./sentry').then((m) => m.initSentry(__SENTRY_DSN__));
+}
 
 const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
 const HONK_WORDS = ['beep!', 'honk!', 'meep!', 'toot!'];
@@ -625,6 +625,9 @@ function frame(timestamp: number): void {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// Dev-only handle for poking at the game from the browser console (stripped from production builds).
+if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig } });
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
