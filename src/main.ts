@@ -10,7 +10,7 @@ import { SkidMarks } from './game/SkidMarks';
 import { warmUpShaders } from './game/warmup';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
-import { count, gauge, reporting } from './analytics';
+import { analyticsEnabled, errorReportingEnabled, track } from './analytics';
 import { SessionMetrics } from './game/SessionMetrics';
 import type { Collider } from './world/props';
 import { BIOMES, biome, type BiomeId } from './world/biomes';
@@ -41,10 +41,13 @@ import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
 import { onBonk } from './wildlife/bonk';
 
-// Error reporting and metrics, live site only. When no DSN was built in, this whole
-// branch (and the Sentry chunk) is dropped from the bundle.
-if (__SENTRY_DSN__ && reporting) {
+// Error reporting (Sentry) and product analytics (PostHog), live site only. When no key
+// was built in, each branch (and its SDK chunk) is dropped from the bundle.
+if (__SENTRY_DSN__ && errorReportingEnabled) {
   void import('./sentry').then((m) => m.initSentry(__SENTRY_DSN__));
+}
+if (__POSTHOG_KEY__ && analyticsEnabled) {
+  void import('./posthog').then((m) => m.initPostHog(__POSTHOG_KEY__, __POSTHOG_HOST__));
 }
 
 const IDLE: DriveInput = { throttle: 0, steer: 0, handbrake: false };
@@ -177,7 +180,7 @@ try {
 platformBanner.hidden = !unsupportedPlatform || bannerClosed;
 document.querySelector<HTMLButtonElement>('#platform-banner-close')!.addEventListener('click', () => {
   platformBanner.hidden = true;
-  count('platform_banner.closed');
+  track('platform_banner_closed');
   try {
     localStorage.setItem(BANNER_CLOSED_KEY, '1');
   } catch {
@@ -233,7 +236,7 @@ function startGame(): void {
   seedInput.value = seedText;
   // Which world people play: the random one they were given, a shared ?seed= link, or their own.
   const seedKind = seedText !== startSeed ? 'custom' : seedFromUrl() ? 'shared' : 'random';
-  count('game.start', 1, { seed: seedKind });
+  track('game_started', { seed_kind: seedKind });
   if (seedText !== currentSeed) loadSeed(seedText);
   else {
     car.reset();
@@ -284,13 +287,13 @@ seedChangeBtn.addEventListener('click', () => {
 diceBtn.addEventListener('click', () => {
   seedInput.value = randomSeedName();
   loadSeed(seedInput.value);
-  count('seed.change', 1, { method: 'dice' });
+  track('world_seed_changed', { method: 'dice' });
 });
 seedInput.addEventListener('change', () => {
   const s = seedInput.value.trim();
   if (s && s !== currentSeed) {
     loadSeed(s);
-    count('seed.change', 1, { method: 'typed' });
+    track('world_seed_changed', { method: 'typed' });
   }
 });
 seedInput.addEventListener('keydown', (e) => {
@@ -368,8 +371,7 @@ const VISITED_KEY = 'drivy.visited';
   } catch {
     // Storage blocked: count it as a first visit.
   }
-  count('visit', 1, { returning, touchOnly: unsupportedPlatform });
-  gauge('journal.species_found', journal.progress().species);
+  track('game_loaded', { returning, touch_only: unsupportedPlatform, species_found: journal.progress().species });
 }
 
 // Keeping a snapshot (F while its polaroid is up) puts it in the photobook.
@@ -383,19 +385,23 @@ photoHud.onKeep = (info) => {
     subject: info.species,
     stars: info.stars,
   });
-  count('photobook.kept', 1, { subject: info.species ?? 'none' });
+  track('photobook_photo_kept', { has_subject: info.species !== null, subject: info.species, stars: info.stars });
 };
 
 function trackPhoto(species: string | null, stars: number, result: RecordResult | null, requestsDone: number): void {
-  count('photo.taken', 1, { subject: species ?? 'none', stars });
+  track('photo_taken', { has_subject: species !== null, subject: species, stars });
   if (!species || !result) return;
   if (result.newSpecies) {
     const def = SPECIES.find((s) => s.id === species);
-    count('journal.new_species', 1, { species, biome: def?.biome ?? 'unknown', legendary: !!def?.legendary });
-    gauge('journal.species_found', journal.progress().species);
+    track('species_discovered', {
+      species,
+      biome: def?.biome ?? 'unknown',
+      is_legendary: !!def?.legendary,
+      species_found: journal.progress().species,
+    });
   }
-  if (result.newBehaviors.length) count('journal.new_behavior', result.newBehaviors.length, { species });
-  if (requestsDone) count('request.completed', requestsDone);
+  if (result.newBehaviors.length) track('behavior_discovered', { species, behavior_count: result.newBehaviors.length });
+  if (requestsDone) track('photo_request_completed', { request_count: requestsDone });
 }
 
 // ---------- loop ----------
@@ -490,7 +496,7 @@ function updateBiome(dt: number): void {
   const def = biome(id);
   biomePill.textContent = `${def.emoji} ${def.name}`;
   if (playing && journal.visitBiome(id)) {
-    count('biome.discovered', 1, { biome: id });
+    track('biome_discovered', { biome: id });
     requests.refill(); // a new biome opens up new requests
     biomeBanner.innerHTML = `<span class="bb-emoji">${def.emoji}</span><strong>${def.name}</strong><small>New biome discovered! New animals to find.</small>`;
     biomeBanner.classList.add('show');
@@ -517,7 +523,7 @@ const structureContext = { time: 0, car: car.position, carSpeed: 0, darkness: 0,
 onBonk((style, species) => {
   if (style === 'squash') playSquash();
   else playLaunch();
-  count('animal.bonk', 1, { style, species });
+  track('animal_bonked', { style, species });
 });
 let chimeCooldown = 0;
 
@@ -525,7 +531,7 @@ let chimeCooldown = 0;
 function chime(): void {
   if (chimeCooldown > 0) return;
   chimeCooldown = CHIME_COOLDOWN;
-  count('chime');
+  session.chimes++;
   playChime();
   speedo.wake();
   squirrels.chime(car.position);
@@ -571,7 +577,7 @@ function frame(timestamp: number): void {
   presence.speed = playing ? car.velocity.length() : 0;
   presence.difficulty = world.difficultyAt(car.position.x, car.position.z);
   if (car.setHorn(honking)) {
-    count('honk');
+    session.honks++;
     horn.start();
     world.structures.honk(car.position);
     speedo.wake();

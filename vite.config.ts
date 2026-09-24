@@ -18,6 +18,8 @@ export default defineConfig(({ command }) => ({
     __APP_VERSION__: JSON.stringify(pkg.version),
     // Set in the release workflow only: dev servers and local builds never report errors.
     __SENTRY_DSN__: JSON.stringify(command === 'build' ? (process.env.SENTRY_DSN?.trim() ?? '') : ''),
+    __POSTHOG_KEY__: JSON.stringify(command === 'build' ? (process.env.POSTHOG_KEY?.trim() ?? '') : ''),
+    __POSTHOG_HOST__: JSON.stringify(process.env.POSTHOG_HOST?.trim() || 'https://eu.i.posthog.com'),
   },
   build: {
     // 'hidden': maps are generated for upload, but the bundles don't point at them.

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@sentry/browser": "^11.0.0",
+    "posthog-js": "^1.434.12",
     "three": "^0.186.0"
   },
   "devDependencies": {

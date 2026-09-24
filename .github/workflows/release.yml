@@ -54,6 +54,9 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          # PostHog product analytics (public project key; it ships in the page).
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
 
       - name: Zip the build
         run: cd dist && zip -r "../drivy-v${{ steps.version.outputs.version }}.zip" .

@@ -1,17 +1,16 @@
-import { distribution } from '../analytics';
-
-/** Seconds of play between frame-rate samples. */
-const FPS_SAMPLE = 30;
+import { track } from '../analytics';
 
 /**
- * Session-level metrics: active play time (driving, not in menus or dialogs)
- * and a periodic frame-rate sample. Play time is reported whenever the tab is
- * hidden (which covers closing it), so each stretch of play is counted once.
+ * Session-level analytics, summed up in one `play_session` event whenever the
+ * tab is hidden (which covers closing it): active play time (driving, not in
+ * menus or dialogs), average frame rate, and how often the player honked and
+ * chimed. Each stretch of play is reported once.
  */
 export class SessionMetrics {
+  honks = 0;
+  chimes = 0;
   private playTime = 0;
-  private fpsTime = 0;
-  private fpsFrames = 0;
+  private frames = 0;
 
   constructor() {
     document.addEventListener('visibilitychange', () => {
@@ -23,20 +22,21 @@ export class SessionMetrics {
   tick(dt: number, active: boolean): void {
     if (!active || dt <= 0) return;
     this.playTime += dt;
-    this.fpsTime += dt;
-    this.fpsFrames++;
-    if (this.fpsTime >= FPS_SAMPLE) {
-      distribution('perf.fps', Math.round(this.fpsFrames / this.fpsTime));
-      this.fpsTime = 0;
-      this.fpsFrames = 0;
-    }
+    this.frames++;
   }
 
   private flush(): void {
-    if (this.playTime >= 1) distribution('session.play_time', Math.round(this.playTime), 'second');
+    if (this.playTime >= 1) {
+      track('play_session', {
+        play_seconds: Math.round(this.playTime),
+        avg_fps: Math.round(this.frames / this.playTime),
+        honks: this.honks,
+        chimes: this.chimes,
+      });
+    }
     this.playTime = 0;
-    // A partial frame-rate window would mostly measure the tab being backgrounded.
-    this.fpsTime = 0;
-    this.fpsFrames = 0;
+    this.frames = 0;
+    this.honks = 0;
+    this.chimes = 0;
   }
 }
