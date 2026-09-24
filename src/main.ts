@@ -143,7 +143,10 @@ const journal = new Journal();
 
 const splash = document.querySelector<HTMLDivElement>('#splash')!;
 const hud = document.querySelector<HTMLDivElement>('#hud')!;
-const hudSeed = document.querySelector<HTMLElement>('#hud-seed')!;
+const seedCurrent = document.querySelector<HTMLElement>('#seed-current')!;
+const controlsSeed = document.querySelector<HTMLElement>('#controls-seed')!;
+const seedChangeBtn = document.querySelector<HTMLButtonElement>('#seed-change')!;
+const seedEditor = document.querySelector<HTMLElement>('#seed-editor')!;
 const seedInput = document.querySelector<HTMLInputElement>('#seed-input')!;
 const diceBtn = document.querySelector<HTMLButtonElement>('#seed-dice')!;
 const playBtn = document.querySelector<HTMLButtonElement>('#play')!;
@@ -172,6 +175,8 @@ let currentSeed = '';
 
 function loadSeed(seedText: string): void {
   currentSeed = seedText;
+  seedCurrent.textContent = seedText;
+  controlsSeed.textContent = seedText;
   world.setSeed(hashString(seedText));
   squirrels.clear();
   owls.clear();
@@ -199,11 +204,6 @@ function startGame(): void {
     skids.clear();
   }
 
-  const url = new URL(window.location.href);
-  url.searchParams.set('seed', seedText);
-  window.history.replaceState(null, '', url);
-
-  hudSeed.textContent = seedText;
   splash.classList.add('hidden');
   hud.classList.remove('hidden');
   rig.mode = 'follow';
@@ -234,6 +234,16 @@ function showMenu(): void {
   playBtn.focus();
 }
 
+// The seed stays tucked away: a small "change seed" link reveals the editor.
+seedChangeBtn.addEventListener('click', () => {
+  const open = seedEditor.hidden;
+  seedEditor.hidden = !open;
+  seedChangeBtn.setAttribute('aria-expanded', String(open));
+  if (open) {
+    seedInput.focus();
+    seedInput.select();
+  }
+});
 diceBtn.addEventListener('click', () => {
   seedInput.value = randomSeedName();
   loadSeed(seedInput.value);

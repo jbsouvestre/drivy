@@ -17,13 +17,17 @@
         <h1 class="title">Drivy</h1>
         <p class="tagline">a tiny car in a big soft world</p>
 
-        <label class="seed-label" for="seed-input">world seed</label>
-        <div class="seed-row">
-          <input id="seed-input" class="seed-input" type="text" spellcheck="false" autocomplete="off" maxlength="40" />
-          <button id="seed-dice" class="dice" type="button" aria-label="Random seed" title="Random seed">🎲</button>
-        </div>
 
         <button id="play" class="play" type="button">Play</button>
+
+        <p class="seed-line">
+          seed · <span id="seed-current"></span> ·
+          <button id="seed-change" class="link-btn" type="button" aria-expanded="false" aria-controls="seed-editor">change seed</button>
+        </p>
+        <div id="seed-editor" class="seed-row" hidden>
+          <input id="seed-input" class="seed-input" type="text" spellcheck="false" autocomplete="off" maxlength="40" aria-label="World seed" />
+          <button id="seed-dice" class="dice" type="button" aria-label="Random seed" title="Random seed">🎲</button>
+        </div>
 
         <div class="secondary-row">
           <button id="show-controls" class="secondary" type="button">🎮 Controls</button>
@@ -36,7 +40,6 @@
 
     <div id="hud" class="hud hidden">
       <div class="hud-top">
-        <span class="pill">seed · <strong id="hud-seed"></strong></span>
         <button id="hud-help" class="pill pill-btn" type="button"><kbd>H</kbd> controls</button>
         <button id="hud-journal" class="pill pill-btn" type="button"><kbd>J</kbd> journal</button>
         <button id="hud-mute" class="pill pill-btn" type="button" title="Nature sounds (M)">🔊</button>
@@ -133,6 +136,7 @@
       <form method="dialog">
         <button class="play small" type="submit">Got it!</button>
       </form>
+      <p class="dialog-seed">world seed · <span id="controls-seed"></span></p>
     </dialog>
 
     <dialog id="journal" class="journal-dialog" aria-labelledby="journal-title">

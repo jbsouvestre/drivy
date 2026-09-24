@@ -102,20 +102,47 @@ kbd {
   font-size: 1.05rem;
 }
 
-.seed-label {
-  display: block;
-  margin-bottom: 6px;
+.seed-line {
+  margin: 12px 0 0;
   font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: #b3a7c2;
+}
+
+.link-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
   color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  color: var(--pink-deep);
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid var(--lilac);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .seed-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 22px;
+  margin-top: 10px;
+}
+
+.seed-row[hidden] {
+  display: none;
+}
+
+.dialog-seed {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: #b3a7c2;
 }
 
 .seed-input {
