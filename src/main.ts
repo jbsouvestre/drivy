@@ -10,10 +10,12 @@ import { SkidMarks } from './game/SkidMarks';
 import { warmUpShaders } from './game/warmup';
 import { Splashes } from './game/Splashes';
 import { hashString, randomSeedName } from './rng';
+import { count, gauge, reporting } from './analytics';
+import { SessionMetrics } from './game/SessionMetrics';
 
-// Error reporting, live site only. When no DSN was built in, this whole branch
-// (and the Sentry chunk) is dropped from the bundle.
-if (__SENTRY_DSN__ && window.location.hostname === 'jbsouvestre.com') {
+// Error reporting and metrics, live site only. When no DSN was built in, this whole
+// branch (and the Sentry chunk) is dropped from the bundle.
+if (__SENTRY_DSN__ && reporting) {
   void import('./sentry').then((m) => m.initSentry(__SENTRY_DSN__));
 }
 import type { Collider } from './world/props';
@@ -23,11 +25,11 @@ import { Weather } from './world/Weather';
 import { setNightGlow } from './world/props';
 import { updateWater } from './world/Water';
 import { World } from './world/World';
-import { Journal } from './safari/Journal';
+import { Journal, type RecordResult } from './safari/Journal';
 import { PhotoMode } from './safari/PhotoMode';
 import { Requests } from './safari/Requests';
 import { scoreShot } from './safari/scoring';
-import type { Subject } from './safari/species';
+import { SPECIES, type Subject } from './safari/species';
 import { JournalView } from './ui/JournalView';
 import { PhotoHud } from './ui/PhotoHud';
 import { Speedometer } from './ui/Speedometer';
@@ -204,6 +206,9 @@ function startGame(): void {
   audioContext(); // unlock sound on this click so ambient night sounds can play
   const seedText = seedInput.value.trim() || randomSeedName();
   seedInput.value = seedText;
+  // Which world people play: the random one they were given, a shared ?seed= link, or their own.
+  const seedKind = seedText !== startSeed ? 'custom' : seedFromUrl() ? 'shared' : 'random';
+  count('game.start', 1, { seed: seedKind });
   if (seedText !== currentSeed) loadSeed(seedText);
   else {
     car.reset();
@@ -214,7 +219,8 @@ function startGame(): void {
   hud.classList.remove('hidden');
   rig.mode = 'follow';
   playing = true;
-  playBtn.blur();
+  // Drop focus from the menu (including the seed box, if Enter started the game) so keys drive the car.
+  (document.activeElement as HTMLElement | null)?.blur();
 }
 
 function setPhotoMode(on: boolean): void {
@@ -253,10 +259,14 @@ seedChangeBtn.addEventListener('click', () => {
 diceBtn.addEventListener('click', () => {
   seedInput.value = randomSeedName();
   loadSeed(seedInput.value);
+  count('seed.change', 1, { method: 'dice' });
 });
 seedInput.addEventListener('change', () => {
   const s = seedInput.value.trim();
-  if (s) loadSeed(s);
+  if (s && s !== currentSeed) {
+    loadSeed(s);
+    count('seed.change', 1, { method: 'typed' });
+  }
 });
 seedInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') startGame();
@@ -314,9 +324,38 @@ window.addEventListener('keydown', (e) => {
 });
 
 seedInput.value = seedFromUrl() ?? randomSeedName();
+const startSeed = seedInput.value;
 loadSeed(seedInput.value);
 rig.snap(car.position);
 warmUpShaders(renderer, scene, rig.camera, [petals.points, snowfall.points, spores.points, rainfall.points, snowstorm.points, fireflies.points]);
+
+// ---------- metrics ----------
+
+const session = new SessionMetrics();
+const VISITED_KEY = 'drivy.visited';
+{
+  let returning = false;
+  try {
+    returning = localStorage.getItem(VISITED_KEY) === '1';
+    localStorage.setItem(VISITED_KEY, '1');
+  } catch {
+    // Storage blocked: count it as a first visit.
+  }
+  count('visit', 1, { returning });
+  gauge('journal.species_found', journal.progress().species);
+}
+
+function trackPhoto(species: string | null, stars: number, result: RecordResult | null, requestsDone: number): void {
+  count('photo.taken', 1, { subject: species ?? 'none', stars });
+  if (!species || !result) return;
+  if (result.newSpecies) {
+    const def = SPECIES.find((s) => s.id === species);
+    count('journal.new_species', 1, { species, biome: def?.biome ?? 'unknown', legendary: !!def?.legendary });
+    gauge('journal.species_found', journal.progress().species);
+  }
+  if (result.newBehaviors.length) count('journal.new_behavior', result.newBehaviors.length, { species });
+  if (requestsDone) count('request.completed', requestsDone);
+}
 
 // ---------- loop ----------
 
@@ -425,6 +464,7 @@ function updateBiome(dt: number): void {
   const def = biome(id);
   biomePill.textContent = `${def.emoji} ${def.name}`;
   if (playing && journal.visitBiome(id)) {
+    count('biome.discovered', 1, { biome: id });
     requests.refill(); // a new biome opens up new requests
     biomeBanner.innerHTML = `<span class="bb-emoji">${def.emoji}</span><strong>${def.name}</strong><small>New biome discovered! New animals to find.</small>`;
     biomeBanner.classList.add('show');
@@ -441,6 +481,7 @@ let chimeCooldown = 0;
 function chime(): void {
   if (chimeCooldown > 0) return;
   chimeCooldown = CHIME_COOLDOWN;
+  count('chime');
   playChime();
   speedo.wake();
   squirrels.chime(car.position);
@@ -477,13 +518,16 @@ function frame(timestamp: number): void {
   timer.update(timestamp);
   // Dialogs pause the game (but the menu backdrop keeps idling).
   const paused = playing && (controlsDialog.open || journalView.open);
-  const dt = paused ? 0 : Math.min(timer.getDelta(), 1 / 20);
+  const rawDt = timer.getDelta();
+  const dt = paused ? 0 : Math.min(rawDt, 1 / 20);
+  session.tick(rawDt, playing && !paused);
 
   const honking = playing && !paused && input.honk;
   chimeCooldown = Math.max(0, chimeCooldown - dt);
   presence.speed = playing ? car.velocity.length() : 0;
   presence.difficulty = world.difficultyAt(car.position.x, car.position.z);
   if (car.setHorn(honking)) {
+    count('honk');
     horn.start();
     speedo.wake();
     birds.scare(car.position);
@@ -574,6 +618,7 @@ function frame(timestamp: number): void {
     const result = sp ? journal.record({ species: sp, stars: shot.stars, behaviors: shot.behaviors, image, seed: currentSeed }) : null;
     const light = lighting();
     const done = sp ? requests.submit({ species: sp, stars: shot.stars, behaviors: shot.behaviors, ...light }) : [];
+    trackPhoto(sp, shot.stars, result, done.length);
     photoHud.showPhoto({
       requests: done.map((r) => r.text), image, species: sp, stars: shot.stars, behaviors: shot.behaviors, result });
   }
