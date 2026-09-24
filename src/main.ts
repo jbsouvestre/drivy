@@ -2,7 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
-import { audioContext, playChime, playShutter } from './game/audio';
+import { audioContext, playChime, playLaunch, playShutter, playSquash } from './game/audio';
 import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
 import { Input } from './game/Input';
@@ -37,6 +37,7 @@ import { Drift, PETALS, RAIN, SNOW, SPORES } from './wildlife/Petals';
 import { Squirrels } from './wildlife/Squirrels';
 import { WetlandAnimals } from './wildlife/WetlandAnimals';
 import type { CarPresence } from './wildlife/awareness';
+import { onBonk } from './wildlife/bonk';
 
 // Error reporting and metrics, live site only. When no DSN was built in, this whole
 // branch (and the Sentry chunk) is dropped from the bundle.
@@ -474,7 +475,20 @@ function updateBiome(dt: number): void {
 }
 
 /** What the animals can sense about the car this frame. */
-const presence: CarPresence = { position: car.position, speed: 0, difficulty: 0 };
+const presence: CarPresence = {
+  position: car.position,
+  speed: 0,
+  difficulty: 0,
+  velocity: car.velocity,
+  camera: rig.camera.position,
+};
+
+// Drove into an animal: a cartoon sound (never a hurt one), and a note for the stats.
+onBonk((style, species) => {
+  if (style === 'squash') playSquash();
+  else playLaunch();
+  count('animal.bonk', 1, { style, species });
+});
 let chimeCooldown = 0;
 
 /** Ring the soft chime: curious animals nearby turn to look (and calm down a little). */
@@ -627,7 +641,7 @@ function frame(timestamp: number): void {
 requestAnimationFrame(frame);
 
 // Dev-only handle for poking at the game from the browser console (stripped from production builds).
-if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig } });
+if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig, groundAnimals, wetland, ducks } });
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);

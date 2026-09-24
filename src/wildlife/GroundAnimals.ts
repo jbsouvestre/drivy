@@ -5,6 +5,7 @@ import type { BiomeId } from '../world/biomes';
 import type { World } from '../world/World';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
+import { BONK_IMMUNITY, Bonk, carHits } from './bonk';
 import {
   createBadger,
   createBunny,
@@ -531,6 +532,10 @@ interface Animal {
   /** The model's resting body height and eye size, to animate relative to. */
   restY: number;
   eyeSize: number;
+  /** A car bonk in progress (squashed flat, or flying off), during which the animal's own life pauses. */
+  bonk: Bonk | null;
+  /** Seconds before it can be bonked again (just after popping back up). */
+  bonkCooldown: number;
 }
 
 const _near: Collider[] = [];
@@ -551,20 +556,23 @@ export class GroundAnimals {
   constructor(private readonly world: World) {}
 
   clear(): void {
-    for (const a of this.animals) this.group.remove(a.model.root);
+    for (const a of this.animals) {
+      a.bonk?.dispose();
+      this.group.remove(a.model.root);
+    }
     this.animals.length = 0;
   }
 
   scare(from: THREE.Vector3): void {
     for (const a of this.animals) {
-      if (a.leaving >= 0 || a.appear < APPEAR_TIME) continue;
+      if (a.leaving >= 0 || a.appear < APPEAR_TIME || a.bonk) continue;
       if (Math.hypot(a.pos.x - from.x, a.pos.z - from.z) <= SCARE_RADIUS) this.startle(a, from);
     }
   }
 
   chime(from: THREE.Vector3): void {
     for (const a of this.animals) {
-      if (a.leaving >= 0 || a.state === 'shock' || a.state === 'flee' || a.state === 'curl') continue;
+      if (a.leaving >= 0 || a.bonk || a.state === 'shock' || a.state === 'flee' || a.state === 'curl') continue;
       if (Math.hypot(a.pos.x - from.x, a.pos.z - from.z) > CHIME_RADIUS) continue;
       a.curiousTime = CURIOUS_TIME;
       a.noteTime = 0;
@@ -575,7 +583,8 @@ export class GroundAnimals {
 
   collectSubjects(out: Subject[]): void {
     for (const a of this.animals) {
-      if (a.appear < APPEAR_TIME || a.leaving >= 0) continue;
+      // A bonked animal is never a photo subject: bonking isn't how you fill the journal.
+      if (a.appear < APPEAR_TIME || a.leaving >= 0 || a.bonk) continue;
       const s = a.def.scale;
       out.push({
         species: a.def.species,
@@ -599,15 +608,59 @@ export class GroundAnimals {
       if (a.leaving >= 0) {
         a.leaving += dt;
         if (a.leaving >= LEAVE_TIME) {
-          this.group.remove(a.model.root);
-          this.animals.splice(i, 1);
+          this.remove(i);
           continue;
         }
+      }
+      if (a.bonk) {
+        this.updateBonk(a, i, dt);
+        continue;
+      }
+      a.bonkCooldown = Math.max(0, a.bonkCooldown - dt);
+      if (a.leaving < 0 && a.appear >= APPEAR_TIME && a.bonkCooldown <= 0 && carHits(a.pos.x, a.pos.z, a.def.radius * a.def.scale, car)) {
+        this.bonk(a, car);
+        continue;
       }
       this.sense(a, dt, car);
       this.think(a, dt, focus);
       this.animate(a, dt);
     }
+  }
+
+  // ---------------------------------------------------------------- bonks
+
+  /** The car drove into it: squash it flat, or send it flying (never both, never harmful). */
+  private bonk(a: Animal, car: CarPresence): void {
+    const style = Math.random() < 0.5 ? 'squash' : 'launch';
+    a.bonk = new Bonk(style, a.def.species, a.pos, car, a.model.eyes, this.group, a.def.height * a.def.scale);
+    a.alert.visible = a.wary.visible = a.note.visible = false;
+  }
+
+  private updateBonk(a: Animal, index: number, dt: number): void {
+    const bonk = a.bonk!;
+    bonk.update(dt, a.model.root, a.pos, this.world.heightAt(a.pos.x, a.pos.z), a.def.scale);
+    if (!bonk.done) return;
+    if (bonk.style === 'launch') {
+      // Sailed off over the horizon: it'll turn up somewhere else.
+      this.remove(index);
+      return;
+    }
+    // Back on its feet, shaken but fine: carry on as before.
+    bonk.dispose();
+    a.bonk = null;
+    a.bonkCooldown = BONK_IMMUNITY;
+    a.alertness = 0;
+    a.waryTime = -1;
+    this.setState(a, 'idle', 1 + Math.random());
+  }
+
+  private remove(index: number): void {
+    const a = this.animals[index];
+    a.bonk?.dispose();
+    this.group.remove(a.model.root);
+    this.animals.splice(index, 1);
+    // Followers of a departed leader carry on by themselves.
+    for (const other of this.animals) if (other.leader === a) other.leader = null;
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -716,6 +769,8 @@ export class GroundAnimals {
       time: Math.random() * 10,
       restY: model.body.position.y,
       eyeSize: model.eyes[0].scale.x,
+      bonk: null,
+      bonkCooldown: 0,
     };
     this.animals.push(a);
     return a;

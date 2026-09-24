@@ -5,6 +5,7 @@ import type { World } from '../world/World';
 import type { SpeciesId, Subject } from '../safari/species';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createBubble, createNote, createWary } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
+import { BONK_IMMUNITY, Bonk, carHits } from './bonk';
 import { createDuck, DUCK_COLORS, makeLegendary, type DuckModel } from './models';
 
 const MAX_FAMILIES = 2;
@@ -54,6 +55,10 @@ interface Duck {
   ringTimer: number;
   /** Sideways offset while panicking, so ducklings scatter a little. */
   scatter: number;
+  /** A car bonk in progress (squashed flat, or flying off), during which the duck stops paddling. */
+  bonk: Bonk | null;
+  /** Seconds before it can be bonked again (just after popping back up). */
+  bonkCooldown: number;
 }
 
 interface Family {
@@ -115,8 +120,15 @@ export class Ducks {
   }
 
   clear(): void {
-    for (const f of this.families) for (const d of f.ducks) this.group.remove(d.model.root);
+    for (const f of this.families) this.removeFamily(f);
     this.families.length = 0;
+  }
+
+  private removeFamily(f: Family): void {
+    for (const d of f.ducks) {
+      d.bonk?.dispose();
+      this.group.remove(d.model.root);
+    }
   }
 
   scare(from: THREE.Vector3): void {
@@ -174,6 +186,8 @@ export class Ducks {
       if (f.appear < 1) continue;
       const panicking = f.scareTime < PANIC_TIME;
       f.ducks.forEach((d, i) => {
+        // A bonked duck is never a photo subject: bonking isn't how you fill the journal.
+        if (d.bonk) return;
         const mother = i === 0;
         let behavior = 'swimming';
         if (panicking) behavior = 'startled';
@@ -200,7 +214,7 @@ export class Ducks {
     for (let i = this.families.length - 1; i >= 0; i--) {
       const m = this.families[i].ducks[0].pos;
       if (Math.hypot(m.x - focus.x, m.z - focus.z) > DESPAWN_RADIUS) {
-        for (const d of this.families[i].ducks) this.group.remove(d.model.root);
+        this.removeFamily(this.families[i]);
         this.families.splice(i, 1);
       }
     }
@@ -277,6 +291,8 @@ export class Ducks {
       dabbleTime: Infinity,
       ringTimer: Math.random(),
       scatter: 0,
+      bonk: null,
+      bonkCooldown: 0,
     };
   }
 
@@ -335,11 +351,12 @@ export class Ducks {
       desired = Math.atan2(mother.pos.x - focus.x, mother.pos.z - focus.z);
       speed = SWIM_SPEED * 2;
     }
-    this.steer(mother, desired, speed, dt, TURN_RATE * (panicking ? 2 : 1));
+    if (!mother.bonk) this.steer(mother, desired, speed, dt, TURN_RATE * (panicking ? 2 : 1));
 
     // --- Ducklings: follow the duck in front, keeping a little gap. ---
     for (let i = 1; i < f.ducks.length; i++) {
       const d = f.ducks[i];
+      if (d.bonk) continue;
       const lead = f.ducks[i - 1];
       const dx = lead.pos.x - d.pos.x;
       const dz = lead.pos.z - d.pos.z;
@@ -362,7 +379,43 @@ export class Ducks {
     animateAlert(f.note, f.noteTime, 0.4, 1.2);
     animateHold(f.wary, f.waryTime, 0.4);
 
-    for (const d of f.ducks) this.animateDuck(f, d, dt, sleepy, panicking);
+    // The mother's bubbles ride on her: hidden while she's flattened.
+    if (mother.bonk) f.quackBubble.visible = f.wary.visible = f.note.visible = false;
+
+    for (let i = f.ducks.length - 1; i >= 0; i--) {
+      const d = f.ducks[i];
+      if (d.bonk) {
+        this.updateBonk(f, i, dt);
+        continue;
+      }
+      d.bonkCooldown = Math.max(0, d.bonkCooldown - dt);
+      if (f.appear >= 1 && d.bonkCooldown <= 0 && carHits(d.pos.x, d.pos.z, 0.42 * d.scale, car)) {
+        // Mum always stays with her ducklings: she only ever gets squashed.
+        const style = i > 0 && Math.random() < 0.5 ? 'launch' : 'squash';
+        d.bonk = new Bonk(style, i === 0 ? f.motherSpecies : 'duckling', d.pos, car, d.model.eyes, this.group, 0.5 * d.scale);
+        d.alert.visible = false;
+        this.splashes.burst(d.pos.x, d.pos.z, 8, 0.9 * d.scale);
+        continue;
+      }
+      this.animateDuck(f, d, dt, sleepy, panicking);
+    }
+  }
+
+  private updateBonk(f: Family, index: number, dt: number): void {
+    const d = f.ducks[index];
+    const bonk = d.bonk!;
+    bonk.update(dt, d.model.root, d.pos, this.terrain.waterLevel, d.scale);
+    if (!bonk.done) return;
+    bonk.dispose();
+    d.bonk = null;
+    if (bonk.style === 'launch') {
+      // Sailed off: the family carries on without this duckling.
+      this.group.remove(d.model.root);
+      f.ducks.splice(index, 1);
+      return;
+    }
+    d.bonkCooldown = BONK_IMMUNITY;
+    this.splashes.burst(d.pos.x, d.pos.z, 5, 0.6 * d.scale);
   }
 
   private quack(f: Family, focus: THREE.Vector3): void {

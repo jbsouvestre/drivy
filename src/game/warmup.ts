@@ -30,6 +30,7 @@ import {
 } from '../wildlife/models';
 import { propDefs } from '../world/props';
 import { roadMaterials } from '../world/roadMesh';
+import { dizzyMaterials } from '../wildlife/bonk';
 
 /**
  * Compile the shaders for every prop and animal up front (behind the splash
@@ -64,6 +65,11 @@ export function warmUpShaders(
     const road = new THREE.Mesh(roadGeometry, material);
     road.receiveShadow = true;
     group.add(road);
+  }
+
+  // Dizzy eyes (sprites) and the swirl over a bonked animal's head.
+  for (const material of dizzyMaterials()) {
+    group.add(material instanceof THREE.SpriteMaterial ? new THREE.Sprite(material) : new THREE.Mesh(roadGeometry, material));
   }
 
   // One of each animal model (their materials are shared per colour, so this covers them all).

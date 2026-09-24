@@ -6,6 +6,7 @@ import type { Prop } from '../world/props';
 import type { World } from '../world/World';
 import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
+import { BONK_IMMUNITY, Bonk, carHits } from './bonk';
 import {
   createFrog,
   createHeron,
@@ -86,6 +87,10 @@ interface Animal {
   leaving: number;
   flyDir: THREE.Vector3;
   time: number;
+  /** A car bonk in progress (squashed flat, or flying off), during which the animal's own life pauses. */
+  bonk: Bonk | null;
+  /** Seconds before it can be bonked again (just after popping back up). */
+  bonkCooldown: number;
 }
 
 const _pads: Prop[] = [];
@@ -111,20 +116,23 @@ export class WetlandAnimals {
   ) {}
 
   clear(): void {
-    for (const a of this.animals) this.group.remove(a.root);
+    for (const a of this.animals) {
+      a.bonk?.dispose();
+      this.group.remove(a.root);
+    }
     this.animals.length = 0;
   }
 
   scare(from: THREE.Vector3): void {
     for (const a of this.animals) {
-      if (a.leaving >= 0 || a.appear < APPEAR_TIME) continue;
+      if (a.leaving >= 0 || a.appear < APPEAR_TIME || a.bonk) continue;
       if (Math.hypot(a.pos.x - from.x, a.pos.z - from.z) <= SCARE_RADIUS) this.startle(a, from);
     }
   }
 
   chime(from: THREE.Vector3): void {
     for (const a of this.animals) {
-      if (a.leaving >= 0 || this.busy(a)) continue;
+      if (a.leaving >= 0 || a.bonk || this.busy(a)) continue;
       if (Math.hypot(a.pos.x - from.x, a.pos.z - from.z) > CHIME_RADIUS) continue;
       a.curiousTime = CURIOUS_TIME;
       a.noteTime = 0;
@@ -135,7 +143,8 @@ export class WetlandAnimals {
 
   collectSubjects(out: Subject[]): void {
     for (const a of this.animals) {
-      if (a.appear < APPEAR_TIME || a.leaving >= 0 || a.state === 'dive') continue;
+      // A bonked animal is never a photo subject: bonking isn't how you fill the journal.
+      if (a.appear < APPEAR_TIME || a.leaving >= 0 || a.state === 'dive' || a.bonk) continue;
       const s = a.def.scale;
       out.push({
         species: a.species,
@@ -160,15 +169,65 @@ export class WetlandAnimals {
       if (a.leaving >= 0) {
         a.leaving += dt;
         if (a.leaving >= LEAVE_TIME) {
-          this.group.remove(a.root);
-          this.animals.splice(i, 1);
+          this.remove(i);
           continue;
         }
+      }
+      if (a.bonk) {
+        this.updateBonk(a, i, dt);
+        continue;
+      }
+      a.bonkCooldown = Math.max(0, a.bonkCooldown - dt);
+      // Mid-dive or hiding under water, they're out of the car's way.
+      const reachable = a.state !== 'dive' && a.state !== 'hide' && a.state !== 'fly';
+      if (reachable && a.leaving < 0 && a.appear >= APPEAR_TIME && a.bonkCooldown <= 0 && carHits(a.pos.x, a.pos.z, a.def.radius * a.def.scale, car)) {
+        this.bonk(a, car);
+        continue;
       }
       this.sense(a, dt, car);
       this.think(a, dt, focus);
       this.animate(a, dt);
     }
+  }
+
+  // ---------------------------------------------------------------- bonks
+
+  /** The car drove into it: squash it flat, or send it flying (never harmful). */
+  private bonk(a: Animal, car: CarPresence): void {
+    const style = Math.random() < 0.5 ? 'squash' : 'launch';
+    a.bonk = new Bonk(style, a.species, a.pos, car, a.model.m.eyes, this.group, a.def.height * a.def.scale);
+    a.alert.visible = a.wary.visible = a.note.visible = false;
+  }
+
+  private updateBonk(a: Animal, index: number, dt: number): void {
+    const bonk = a.bonk!;
+    bonk.update(dt, a.root, a.pos, this.restHeight(a), a.def.scale);
+    if (!bonk.done) return;
+    if (bonk.style === 'launch') {
+      this.remove(index); // sailed off: it'll turn up somewhere else
+      return;
+    }
+    // Back up, shaken but fine: carry on as before.
+    bonk.dispose();
+    a.bonk = null;
+    a.bonkCooldown = BONK_IMMUNITY;
+    a.alertness = 0;
+    a.waryTime = -1;
+  }
+
+  /** Where the animal sits at rest: on its pad, on the shore, wading, or afloat. */
+  private restHeight(a: Animal): number {
+    const water = this.world.waterLevel;
+    if (a.kind === 'frog') return a.pad ? water + 0.035 : Math.max(this.world.heightAt(a.pos.x, a.pos.z), water);
+    if (a.kind === 'heron') return this.world.heightAt(a.pos.x, a.pos.z);
+    return water - 0.12;
+  }
+
+  private remove(index: number): void {
+    const a = this.animals[index];
+    a.bonk?.dispose();
+    this.group.remove(a.root);
+    this.animals.splice(index, 1);
   }
 
   // ---------------------------------------------------------------- habitat
@@ -309,6 +368,8 @@ export class WetlandAnimals {
       leaving: -1,
       flyDir: new THREE.Vector3(),
       time: Math.random() * 10,
+      bonk: null,
+      bonkCooldown: 0,
     };
     this.animals.push(a);
     return a;

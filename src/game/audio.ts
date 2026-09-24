@@ -156,3 +156,54 @@ export function playRibbit(volume: number): void {
     osc.stop(start + 0.1);
   }
 }
+
+/** A soft, squelchy "sproing" for a cartoon squash: a quick bouncy drop in pitch. */
+export function playSquash(): void {
+  const ac = runningAudio();
+  if (!ac) return;
+  const t = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(520, t);
+  osc.frequency.exponentialRampToValueAtTime(140, t + 0.22);
+  // A fast wobble on the pitch makes it springy.
+  const wobble = ac.createOscillator();
+  const depth = ac.createGain();
+  wobble.frequency.value = 28;
+  depth.gain.value = 40;
+  wobble.connect(depth).connect(osc.frequency);
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.12, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+  osc.connect(gain).connect(ac.destination);
+  osc.start(t);
+  wobble.start(t);
+  osc.stop(t + 0.36);
+  wobble.stop(t + 0.36);
+}
+
+/** A bright rising "boing!" for a cartoon launch. */
+export function playLaunch(): void {
+  const ac = runningAudio();
+  if (!ac) return;
+  const t = ac.currentTime;
+  const osc = ac.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(220, t);
+  osc.frequency.exponentialRampToValueAtTime(900, t + 0.3);
+  const wobble = ac.createOscillator();
+  const depth = ac.createGain();
+  wobble.frequency.value = 18;
+  depth.gain.value = 60;
+  wobble.connect(depth).connect(osc.frequency);
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.11, t + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+  osc.connect(gain).connect(ac.destination);
+  osc.start(t);
+  wobble.start(t);
+  osc.stop(t + 0.46);
+  wobble.stop(t + 0.46);
+}

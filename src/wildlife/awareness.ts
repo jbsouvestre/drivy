@@ -7,6 +7,10 @@ export interface CarPresence {
   speed: number;
   /** 0 near spawn → 1 far away: animals out there are shyer. */
   difficulty: number;
+  /** The car's velocity (which way a bonked animal flies). */
+  velocity: THREE.Vector3;
+  /** Where the player's camera is (some bonked animals fly right at it). */
+  camera: THREE.Vector3;
 }
 
 /** Alertness above this makes an animal wary: it stops and stares, with a "?". */
