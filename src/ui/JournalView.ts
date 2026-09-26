@@ -99,8 +99,16 @@ export class JournalView {
       </div>
       <ul class="post-list">${items || '<li>Nothing needed right now. Explore somewhere new!</li>'}</ul>`;
 
-    // One section per biome; undiscovered biomes stay a mystery.
-    this.body.innerHTML = BIOMES.map((biome) => {
+    // The mythic cats first (a mystery until found), then one section per biome;
+    // undiscovered biomes stay a mystery.
+    const cats = SPECIES.filter((sp) => sp.mythic);
+    const catsFound = cats.filter((sp) => this.journal.entry(sp.id)).length;
+    const catSection = `
+      <section class="biome-section cats-section">
+        <h3 class="biome-title">🐈 The Cats <small>Mythic · anywhere, day or night, very rarely · ${catsFound} / ${cats.length} found</small></h3>
+        <div class="journal-cards">${cats.map((sp) => this.card(sp)).join('')}</div>
+      </section>`;
+    this.body.innerHTML = catSection + BIOMES.map((biome) => {
       if (!this.journal.hasVisited(biome.id)) {
         return `
           <section class="biome-section locked">
@@ -198,7 +206,7 @@ export class JournalView {
           <a class="save" href="${photo.full}" download="${file}" title="Save photo">⤓</a>`
       : `<span class="silhouette">${sp.emoji}</span>`;
     return `
-      <article class="card${sp.legendary ? ' legendary-found' : ''}">
+      <article class="card${sp.mythic ? ' mythic-found' : sp.legendary ? ' legendary-found' : ''}">
         <div class="card-photo">
           ${picture}
         </div>
@@ -213,6 +221,7 @@ export class JournalView {
 }
 
 function badge(sp: Species): string {
+  if (sp.mythic) return ' <span class="rare mythic">🌟 mythic</span>';
   if (sp.legendary) return ' <span class="rare legendary">✨ legendary</span>';
   return sp.rare ? ' <span class="rare">rare</span>' : '';
 }

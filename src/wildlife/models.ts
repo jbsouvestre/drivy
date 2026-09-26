@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { SpeciesId } from '../safari/species';
 
@@ -22,6 +23,8 @@ const geo = {
   wing: new THREE.SphereGeometry(1, 12, 8).scale(0.38, 0.06, 0.2).translate(0.34, 0, 0),
   tail: new THREE.SphereGeometry(1, 10, 6).scale(0.14, 0.04, 0.22),
   cylinder: new THREE.CylinderGeometry(1, 1, 1, 8),
+  /** For big, close-up-worthy shapes where facets would show (the cats' heads). */
+  fineSphere: new THREE.SphereGeometry(1, 32, 24),
 };
 
 function part(
@@ -258,6 +261,8 @@ export interface GroundModel {
   /** Front-left, front-right, back-left, back-right hip pivots. */
   legs: THREE.Group[];
   eyes: THREE.Mesh[];
+  /** Mythic animals: a ring of sparkles orbiting them (spun by the animation). */
+  aura?: THREE.Group;
 }
 
 function leg(parent: THREE.Object3D, x: number, y: number, z: number, length: number, radius: number, color: string, hoof?: string): THREE.Group {
@@ -892,4 +897,349 @@ export function createBadger(): GroundModel {
   body.add(tail);
   part(tail, geo.sphere, c.coat, [0, 0, -0.03], [0.05, 0.05, 0.08]);
   return { root, body, head, neck: null, tail, legs, eyes };
+}
+
+// ---------------------------------------------------------------- the cats (mythic)
+
+/** How a cat is built: body shape, colours and quirks. */
+export interface CatSpec {
+  build: 'loaf' | 'eggplant' | 'slim';
+  /** Main coat, and the lighter chest/belly/muzzle/paws. */
+  coat: string;
+  light: string;
+  /** Tabby stripes, on the body, face and tail. */
+  stripes?: string;
+  /** A tail that goes up, then bends at a right angle. */
+  brokenTail?: boolean;
+  /** Pupil colour; with `iris`, big coloured eyes (otherwise simple dark eyes). */
+  eye: string;
+  iris?: string;
+  /**
+   * Face markings painted over a light head: a `hood` over the head, ears and around the eyes; two
+   * forehead `patches` from the ears to above the eyes; or a `tabby` mask down past the eyes, leaving
+   * the muzzle and chin light (with `stripes` lines on the forehead and from the eyes).
+   */
+  markings?: { pattern: 'hood' | 'patches' | 'tabby'; color: string };
+  /** A light stripe down the forehead, between the eyes (or between the patches). */
+  blaze?: boolean;
+  /** Tail colour (defaults to the coat), and dark rings around it (defaults to `stripes`). */
+  tail?: string;
+  tailRings?: string;
+}
+
+export const CATS: Record<'crochePatte' | 'kiki' | 'chablis', CatSpec> = {
+  // Fat and rectangle-shaped, all white, with grey tabby patches on the forehead either side of a white
+  // stripe, big yellow-green eyes and a grey tabby tail.
+  crochePatte: {
+    build: 'loaf',
+    coat: '#fbfaf6',
+    light: '#ffffff',
+    eye: '#3a3346',
+    iris: '#cfd184',
+    markings: { pattern: 'patches', color: '#9a96a0' },
+    blaze: true,
+    tail: '#a8a4ac',
+    tailRings: '#5a5562',
+  },
+  // Slate grey and white, eggplant-shaped, with a broken tail making a right angle; a grey hood with a
+  // white blaze between big yellow-olive eyes, over a white muzzle.
+  kiki: {
+    build: 'eggplant',
+    coat: '#7d7a88',
+    light: '#fbfaf6',
+    brokenTail: true,
+    eye: '#3a3346',
+    iris: '#e0c878',
+    markings: { pattern: 'hood', color: '#7d7a88' },
+    blaze: true,
+  },
+  // Slim, a warm grey tabby with a white chest, belly, legs and chin; a tabby mask with dark forehead
+  // lines, pale blue eyes and a ringed tail.
+  chablis: {
+    build: 'slim',
+    coat: '#b9b1aa',
+    light: '#fbfaf6',
+    stripes: '#6f6862',
+    eye: '#2f3340',
+    iris: '#bcd5e2',
+    markings: { pattern: 'tabby', color: '#b9b1aa' },
+  },
+};
+
+const CAT_PINK = '#ffb3c1';
+const CAT_WHISKER = '#d8d2de';
+const SPARKLE_GOLD = new THREE.MeshBasicMaterial({ color: '#ffe38a' });
+const sparkleGeo = new THREE.OctahedronGeometry(0.035);
+const paintedHeads = new Map<string, THREE.BufferGeometry>();
+
+/**
+ * A unit head sphere painted with vertex colours (see CatSpec.markings), with
+ * an optional light blaze up the forehead. Soft edges, no seams.
+ */
+function paintedHead(pattern: 'hood' | 'patches' | 'tabby', dark: string, light: string, blaze: boolean, lines?: string): THREE.BufferGeometry {
+  const key = `${pattern}|${dark}|${light}|${blaze}|${lines}`;
+  let g = paintedHeads.get(key);
+  if (g) return g;
+  g = new THREE.SphereGeometry(1, 96, 72);
+  const pos = g.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const darkColor = new THREE.Color(dark);
+  const pale = new THREE.Color(light);
+  const lineColor = new THREE.Color(lines ?? dark);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    let hooded: number;
+    if (pattern === 'hood') {
+      // The hood's lower edge runs across the eyes at the front and drops away round the sides and back.
+      hooded = smooth(-0.04, 0.04, y - 0.1 + 0.5 * (0.85 - z));
+      if (blaze && z > 0.3) {
+        // A light stripe, a point at the top of the forehead, widening down between the eyes.
+        hooded *= smooth(-0.03, 0.03, Math.abs(x) - (0.04 + 0.55 * (0.82 - y)));
+      }
+    } else if (pattern === 'tabby') {
+      // A mask down past the eyes and over the nose bridge; the muzzle either side of the nose and the
+      // chin stay light.
+      const ax = Math.abs(x);
+      hooded = smooth(-0.04, 0.04, y + 0.12 + 0.6 * (0.85 - z));
+      hooded = Math.max(hooded, smooth(-0.03, 0.03, 0.12 - ax) * smooth(-0.04, 0.04, y + 0.1) * smooth(0.5, 0.7, z));
+    } else {
+      // Patches over the top of the forehead, dipping to just above the outer corners of the eyes;
+      // the back of the head stays light.
+      hooded = smooth(-0.04, 0.04, y - 0.46 + 0.3 * Math.abs(x)) * smooth(-0.05, 0.2, z);
+      // A wide light stripe between them, widening a little toward the eyes.
+      if (blaze) hooded *= smooth(-0.03, 0.03, Math.abs(x) - (0.13 + 0.2 * (0.9 - y)));
+    }
+    c.copy(pale).lerp(darkColor, hooded);
+    if (pattern === 'tabby' && lines && z > 0.2) {
+      // Thin dark lines up the forehead (an "M"), and one from the outer corner of each eye.
+      const ax = Math.abs(x);
+      const forehead = Math.max(smooth(0.035, 0.02, Math.abs(ax - 0.09)), smooth(0.03, 0.017, Math.abs(ax - 0.25 + 0.15 * (y - 0.5))));
+      const line = forehead * smooth(0.42, 0.5, y) * smooth(0.98, 0.85, y);
+      const cheek = smooth(0.045, 0.025, Math.abs(y - 0.02 + 0.45 * (ax - 0.62))) * smooth(0.6, 0.66, ax) * smooth(0.95, 0.85, ax);
+      c.lerp(lineColor, Math.max(line, cheek) * 0.85);
+    }
+    c.toArray(colors, i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  paintedHeads.set(key, g);
+  return g;
+}
+
+function smooth(e0: number, e1: number, v: number): number {
+  const t = Math.min(1, Math.max(0, (v - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+const paintedBodies = new Map<string, THREE.BufferGeometry>();
+
+/**
+ * A unit body sphere (+Z forward) painted as a tabby: dark stripes down the back
+ * and sides over the coat, a light chest and belly.
+ */
+function tabbyBody(coat: string, light: string, stripes: string): THREE.BufferGeometry {
+  const key = `${coat}|${light}|${stripes}`;
+  let g = paintedBodies.get(key);
+  if (g) return g;
+  g = new THREE.SphereGeometry(1, 128, 64);
+  const pos = g.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const base = new THREE.Color(coat);
+  const pale = new THREE.Color(light);
+  const dark = new THREE.Color(stripes);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    // Stripes wrap down from the spine, wavy and fading toward the belly.
+    const wave = Math.sin((z + 0.05 * Math.sin(y * 4 + x * 2)) * 20);
+    const stripe = smooth(0.1, 0.9, wave) * smooth(-0.35, 0.25, y) * smooth(0.75, 0.5, z);
+    c.copy(base).lerp(dark, stripe * 0.6);
+    // Light below the flanks, and up the chest at the front.
+    c.lerp(pale, smooth(-0.3, -0.45, y - 0.9 * smooth(0.55, 0.95, z)));
+    c.toArray(colors, i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  paintedBodies.set(key, g);
+  return g;
+}
+
+const vertexColored = new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.6, metalness: 0 });
+
+/** Cat tails, one shared tube per build and colouring. */
+const tailGeometries = new Map<string, THREE.TubeGeometry>();
+
+/** A tail tube, optionally painted with dark rings and a dark tip (vertex colours, so no seams). */
+function tailTube(curve: THREE.Curve<THREE.Vector3>, radius: number, key: string, base: string, rings?: string, count = 3): THREE.TubeGeometry {
+  let g = tailGeometries.get(key);
+  if (g) return g;
+  g = new THREE.TubeGeometry(curve, 48, radius, 10);
+  if (rings) {
+    const uv = g.attributes.uv;
+    const colors = new Float32Array(uv.count * 3);
+    const light = new THREE.Color(base);
+    const dark = new THREE.Color(rings);
+    const c = new THREE.Color();
+    for (let i = 0; i < uv.count; i++) {
+      const u = uv.getX(i); // 0 at the base, 1 at the tip
+      // Soft rings, getting a touch wider toward the tip, which ends dark.
+      const phase = (u * count + 0.35) % 1;
+      const ring = Math.max(0, 1 - Math.abs(phase - 0.5) / (0.16 + 0.08 * u)) ** 0.5;
+      const t = Math.min(1, Math.max(ring > 0.35 ? 1 : 0, (u - 0.9) / 0.05));
+      c.copy(light).lerp(dark, t).toArray(colors, i * 3);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  }
+  tailGeometries.set(key, g);
+  return g;
+}
+
+/**
+ * A house cat, in one of three builds: a big square "loaf" (Croche-Patte),
+ * an eggplant with a small front and big round rear (Kiki), or a slim, long-
+ * legged cat (Chablis). Feet at y = 0, facing +Z, with a sparkle aura.
+ */
+export function createCat(spec: CatSpec): GroundModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+  const { coat, light } = spec;
+
+  // Body, legs and where the head and tail attach, per build.
+  let legs: THREE.Group[];
+  let headAt: [number, number, number];
+  let tailAt: [number, number, number];
+  let headSize: number;
+  if (spec.build === 'loaf') {
+    const loaf = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.36, 0.74, 4, 0.15), mat(coat));
+    loaf.position.set(0, 0.32, 0);
+    loaf.castShadow = true;
+    body.add(loaf);
+    part(body, geo.sphere, light, [0, 0.26, 0.2], [0.2, 0.15, 0.2]);
+    const y = 0.2;
+    legs = [[-0.15, 0.25], [0.15, 0.25], [-0.15, -0.25], [0.15, -0.25]].map(([x, z]) => leg(body, x, y, z, 0.2, 0.07, coat, light));
+    headAt = [0, 0.52, 0.36];
+    tailAt = [0, 0.38, -0.37];
+    headSize = 0.19;
+  } else if (spec.build === 'eggplant') {
+    // Big round bottom at the back, a narrower front: an eggplant lying down.
+    part(body, geo.fineSphere, coat, [0, 0.36, -0.1], [0.25, 0.25, 0.27]);
+    // A light chest under a coloured saddle over the shoulders.
+    part(body, geo.fineSphere, light, [0, 0.4, 0.17], [0.17, 0.18, 0.2]);
+    part(body, geo.fineSphere, coat, [0, 0.47, 0.1], [0.16, 0.12, 0.2]);
+    part(body, geo.fineSphere, light, [0, 0.31, 0.06], [0.2, 0.17, 0.3]);
+    legs = [[-0.09, 0.3, 0.2], [0.09, 0.3, 0.2], [-0.13, 0.24, -0.16], [0.13, 0.24, -0.16]].map(([x, y, z]) => leg(body, x, y, z, y - 0.02, 0.05, light, light));
+    headAt = [0, 0.58, 0.32];
+    tailAt = [0, 0.46, -0.34];
+    headSize = 0.16;
+  } else {
+    if (spec.stripes) {
+      const torso = new THREE.Mesh(tabbyBody(coat, light, spec.stripes), vertexColored);
+      torso.position.set(0, 0.36, 0);
+      torso.scale.set(0.14, 0.15, 0.38);
+      torso.castShadow = true;
+      body.add(torso);
+    } else {
+      part(body, geo.sphere, coat, [0, 0.36, 0], [0.14, 0.15, 0.38]);
+    }
+    part(body, geo.sphere, light, [0, 0.31, 0.12], [0.11, 0.11, 0.2]);
+    // A neck up to the head: coat behind, a light throat in front.
+    part(body, geo.fineSphere, coat, [0, 0.47, 0.3], [0.1, 0.13, 0.11]);
+    part(body, geo.fineSphere, light, [0, 0.44, 0.34], [0.085, 0.11, 0.08]);
+    // White legs and paws.
+    legs = [[-0.07, 0.29, 0.22], [0.07, 0.29, 0.22], [-0.07, 0.29, -0.22], [0.07, 0.29, -0.22]].map(([x, y, z]) => leg(body, x, y, z, 0.29, 0.043, light, light));
+    headAt = [0, 0.56, 0.38];
+    tailAt = [0, 0.4, -0.36];
+    headSize = 0.14;
+  }
+
+  // Head: round, with a white muzzle, pink nose, whiskers and pointy ears.
+  const head = new THREE.Group();
+  head.position.set(...headAt);
+  body.add(head);
+  const r = headSize;
+  const { markings } = spec;
+  if (markings) {
+    // One painted sphere: markings (and blaze) over a light face, a little wide at the cheeks.
+    const skull = new THREE.Mesh(paintedHead(markings.pattern, markings.color, light, !!spec.blaze, spec.stripes), vertexColored);
+    skull.scale.set(r * 1.05, r * 0.9, r * 0.92);
+    skull.castShadow = true;
+    head.add(skull);
+  } else {
+    part(head, geo.fineSphere, coat, [0, 0, 0], [r, r * 0.9, r * 0.92]);
+  }
+  // Muzzle puffs (subtler on a painted face, which is already light there).
+  const puff = markings ? 0.8 : 1;
+  for (const side of [-1, 1]) part(head, geo.fineSphere, light, [r * 0.27 * side, -r * 0.36, r * 0.64], [r * 0.36 * puff, r * 0.3 * puff, r * 0.34 * puff]);
+  part(head, geo.smallSphere, CAT_PINK, [0, -r * 0.12, r * 0.9], [r * 0.14, r * 0.1, r * 0.1]);
+  const eyes: THREE.Mesh[] = [];
+  for (const side of [-1, 1]) {
+    if (spec.iris) {
+      // Big round coloured eyes with a dark pupil (the pupil rides along when the eye blinks shut).
+      const eye = part(head, geo.sphere, spec.iris, [r * 0.4 * side, r * 0.14, r * 0.8], [r * 0.22, r * 0.22, r * 0.12]);
+      eye.rotation.y = 0.28 * side; // faces a touch outward, like a real cat's
+      const pupil = new THREE.Mesh(geo.sphere, mat(spec.eye));
+      pupil.position.set(0, 0, 0.72);
+      pupil.scale.set(0.5, 0.64, 0.4);
+      const glint = new THREE.Mesh(geo.smallSphere, mat('#ffffff'));
+      glint.position.set(-0.28, 0.3, 0.98);
+      glint.scale.setScalar(0.17);
+      eye.add(pupil, glint);
+      eyes.push(eye);
+    } else {
+      eyes.push(part(head, geo.smallSphere, spec.eye, [r * 0.42 * side, r * 0.12, r * 0.78], r * 0.15));
+    }
+    const ear = part(head, geo.cone, markings && markings.pattern !== 'patches' ? markings.color : coat, [r * 0.55 * side, r * 0.9, -r * 0.05], [r * 0.4, r * 0.72, r * 0.24]);
+    ear.rotation.z = -0.35 * side;
+    const inner = part(head, geo.cone, CAT_PINK, [r * 0.55 * side, r * 0.86, r * 0.06], [r * 0.24, r * 0.48, r * 0.1]);
+    inner.rotation.z = -0.35 * side;
+    // Three whiskers per side.
+    for (let w = -1; w <= 1; w++) {
+      const whisker = part(head, geo.cylinder, CAT_WHISKER, [r * 0.62 * side, -r * 0.3 + w * r * 0.1, r * 0.72], [0.004, r * 0.8, 0.004]);
+      whisker.rotation.z = (Math.PI / 2) * side + w * 0.18 * side;
+    }
+  }
+
+  // Tail: pivots at its base so it can swish and curl.
+  const tail = new THREE.Group();
+  tail.position.set(...tailAt);
+  body.add(tail);
+  const tailColor = spec.tail ?? coat;
+  const rings = spec.tailRings ?? spec.stripes;
+  if (spec.brokenTail) {
+    // Straight up, then a sharp right-angle bend backward.
+    part(tail, geo.cylinder, tailColor, [0, 0.16, -0.02], [0.045, 0.32, 0.045]);
+    part(tail, geo.sphere, tailColor, [0, 0.32, -0.02], 0.047);
+    part(tail, geo.cylinder, tailColor, [0, 0.32, -0.13], [0.043, 0.22, 0.043]).rotation.x = Math.PI / 2;
+    part(tail, geo.sphere, tailColor, [0, 0.32, -0.25], 0.046);
+  } else {
+    // A smooth tail curving up and back (thick and short for a fat cat, long and thin for a slim one).
+    const fat = spec.build === 'loaf';
+    const radius = fat ? 0.06 : 0.036;
+    const curve = new THREE.CatmullRomCurve3(
+      (fat
+        ? [[0, 0, 0], [0, 0.08, -0.12], [0, 0.22, -0.2], [0, 0.36, -0.17]]
+        : [[0, 0, 0], [0, 0.07, -0.14], [0, 0.22, -0.26], [0, 0.4, -0.26], [0, 0.5, -0.18]]
+      ).map(([x, y, z]) => new THREE.Vector3(x, y, z)),
+    );
+    // Dark rings painted around the tail (more of them on a tabby tail), ending in a dark tip.
+    const count = 5;
+    const tubeGeo = tailTube(curve, radius, `${spec.build}|${tailColor}|${rings}|${count}`, tailColor, rings, count);
+    const tube = new THREE.Mesh(tubeGeo, rings ? vertexColored : mat(tailColor));
+    tube.castShadow = true;
+    tail.add(tube);
+    part(tail, geo.sphere, rings ?? tailColor, curve.getPoint(1).toArray() as [number, number, number], radius);
+  }
+
+  // A slow ring of golden sparkles: the mark of a mythic animal.
+  const aura = new THREE.Group();
+  aura.position.y = headAt[1] * 0.75;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const sparkle = new THREE.Mesh(sparkleGeo, SPARKLE_GOLD);
+    sparkle.position.set(Math.cos(a) * 0.5, (i % 2) * 0.12, Math.sin(a) * 0.5);
+    aura.add(sparkle);
+  }
+  root.add(aura);
+
+  return { root, body, head, neck: null, tail, legs, eyes, aura };
 }

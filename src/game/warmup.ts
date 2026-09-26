@@ -5,6 +5,8 @@ import {
   createBird,
   createBunny,
   createCamel,
+  createCat,
+  CATS,
   createCrab,
   createDeer,
   createDragonfly,
@@ -100,6 +102,9 @@ export function warmUpShaders(
     createPenguin().root,
     createSnail(SNAIL_COLORS.normal).root,
     createBadger().root,
+    createCat(CATS.crochePatte).root,
+    createCat(CATS.kiki).root,
+    createCat(CATS.chablis).root,
   );
 
   // Compile against the real scene so light and fog setups match.

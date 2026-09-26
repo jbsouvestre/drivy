@@ -29,11 +29,13 @@ export interface PhotoRequest {
 function allRequests(): PhotoRequest[] {
   const out: PhotoRequest[] = [];
   for (const sp of SPECIES) {
-    if (sp.legendary) continue;
+    // Legendary and mythic animals are too rare to ask for.
+    const biome = sp.biome;
+    if (sp.legendary || sp.mythic || biome === 'anywhere') continue;
     out.push({
       id: `portrait:${sp.id}`,
       text: `A lovely ★★★ portrait of ${article(sp.name)}.`,
-      biome: sp.biome,
+      biome,
       check: (p) => p.species === sp.id && p.stars >= 3,
     });
     // Behaviour requests (skip the everyday first one and the weather-only one).
@@ -42,7 +44,7 @@ function allRequests(): PhotoRequest[] {
       out.push({
         id: `behavior:${sp.id}:${b.id}`,
         text: `${capitalize(article(sp.name))} — "${b.label}" — for the front page!`,
-        biome: sp.biome,
+        biome,
         check: (p) => p.species === sp.id && p.behaviors.includes(b.id),
       });
     }

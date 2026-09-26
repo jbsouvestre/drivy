@@ -54,6 +54,7 @@ export function scoreShot(
     if (f.base > 0.05) {
       if (f.subject.behavior !== sp.behaviors[0].id) bonus += 0.12;
       if (sp.legendary) bonus += 0.25;
+      if (sp.mythic) bonus += 0.35;
       else if (sp.rare) bonus += 0.15;
       if (light.goldenHour) bonus += 0.08;
       if (light.night) bonus += 0.05;

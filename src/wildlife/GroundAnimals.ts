@@ -3,13 +3,15 @@ import type { SpeciesId, Subject } from '../safari/species';
 import type { Collider } from '../world/props';
 import type { BiomeId } from '../world/biomes';
 import type { World } from '../world/World';
-import { ALERT_DURATION, animateAlert, animateHold, createAlert, createNote, createWary } from './alert';
+import { ALERT_DURATION, animateAlert, animateHold, animateZzz, createAlert, createNote, createWary, createZzz } from './alert';
 import { rareChance, updateAlert, WARY, type CarPresence } from './awareness';
 import { BONK_IMMUNITY, Bonk, carHits } from './bonk';
 import {
   createBadger,
   createBunny,
   createCamel,
+  createCat,
+  CATS,
   createPenguin,
   createSnail,
   SNAIL_COLORS,
@@ -28,6 +30,9 @@ import {
 } from './models';
 
 type Kind =
+  | 'crochePatte'
+  | 'kiki'
+  | 'chablis'
   | 'deer'
   | 'fox'
   | 'hedgehog'
@@ -53,8 +58,12 @@ type Behaves = 'deer' | 'fox' | 'hedgehog';
 interface KindDef {
   species: SpeciesId;
   behaves: Behaves;
-  /** The biome it lives in. */
-  biome: BiomeId;
+  /** The biome it lives in ('anywhere' for mythic animals). */
+  biome: BiomeId | 'anywhere';
+  /** Mythic (the cats): any biome, day or night, never more than one in the world, and rarest of all. */
+  mythic?: boolean;
+  /** Takes naps any time of day (with a Zzz), instead of only sleeping at night. */
+  naps?: boolean;
   /** Beach dwellers: only spawn and wander within reach of water. */
   nearWater?: boolean;
   /** How far the body drops when lying down to sleep. */
@@ -83,6 +92,10 @@ interface KindDef {
 }
 
 const KINDS: Record<Kind, KindDef> = {
+  // ---- Mythic: the three cats. Any biome, day or night, one at a time. ----
+  crochePatte: cat('croche-patte', CATS.crochePatte, { walkSpeed: 1.3, fleeSpeed: 5.5, height: 0.72, radius: 0.46, sleepDrop: -0.14, gait: 6 }),
+  kiki: cat('kiki', CATS.kiki, { walkSpeed: 1.6, fleeSpeed: 6, height: 0.74, radius: 0.42, sleepDrop: -0.18, gait: 6 }),
+  chablis: cat('chablis', CATS.chablis, { walkSpeed: 2.1, fleeSpeed: 7.5, height: 0.76, radius: 0.36, sleepDrop: -0.26, gait: 5 }),
   deer: {
     species: 'deer',
     behaves: 'deer',
@@ -484,6 +497,36 @@ const KINDS: Record<Kind, KindDef> = {
   },
 };
 
+/** A mythic cat's definition: fox-like roaming, sitting and pouncing, plus naps; sizes per cat. */
+function cat(
+  species: SpeciesId,
+  spec: Parameters<typeof createCat>[0],
+  build: Pick<KindDef, 'walkSpeed' | 'fleeSpeed' | 'height' | 'radius' | 'sleepDrop' | 'gait'>,
+): KindDef {
+  return {
+    species,
+    behaves: 'fox',
+    biome: 'anywhere',
+    mythic: true,
+    naps: true,
+    create: () => createCat(spec),
+    scale: 1.25,
+    notice: 14,
+    groupSize: [1, 1],
+    maxGroups: 1,
+    nocturnal: false,
+    sleepsAtNight: false,
+    reaction: 'flee',
+    ...build,
+  };
+}
+
+/**
+ * Chance per spawn check that a cat turns up (each cat is checked about every
+ * 2 s): roughly one cat per 10 minutes of play.
+ */
+const MYTHIC_CHANCE = 0.0012;
+
 /** Animals appear in this ring around the player (inside the right biome) and leave beyond DESPAWN_RADIUS. */
 /** Animal kinds considered per spawn check (checks run 4× a second). */
 const KINDS_PER_CHECK = 3;
@@ -510,6 +553,8 @@ interface Animal {
   alert: THREE.Sprite;
   wary: THREE.Sprite;
   note: THREE.Sprite;
+  /** "z Z z" over nappers (the cats), shown while asleep. */
+  zzz: THREE.Sprite | null;
   pos: THREE.Vector3;
   heading: number;
   target: THREE.Vector3;
@@ -687,7 +732,10 @@ export class GroundAnimals {
     for (let n = 0; n < KINDS_PER_CHECK; n++) {
       const kind = kinds[this.kindCursor++ % kinds.length];
       const def = KINDS[kind];
-      if (!around.has(def.biome)) continue;
+      if (def.mythic) {
+        // One cat in the world at a time, and only very rarely.
+        if (this.animals.some((a) => a.def.mythic) || Math.random() > MYTHIC_CHANCE) continue;
+      } else if (def.biome === 'anywhere' || !around.has(def.biome)) continue;
       if (def.nocturnal && darkness < 0.4) continue;
       if (def.legendaryChance !== undefined && Math.random() > rareChance(def.legendaryChance, this.world.difficultyAt(focus.x, focus.z))) continue;
       const groups = this.animals.filter((a) => a.kind === kind && !a.leader && a.leaving < 0).length;
@@ -704,7 +752,7 @@ export class GroundAnimals {
       const r = SPAWN_MIN + Math.random() * (SPAWN_MAX - SPAWN_MIN);
       const x = focus.x + Math.cos(ang) * r;
       const z = focus.z + Math.sin(ang) * r;
-      if (this.world.biomeWeight(x, z, def.biome) < 0.7) continue;
+      if (def.biome !== 'anywhere' && this.world.biomeWeight(x, z, def.biome) < 0.7) continue;
       if (!this.walkable(x, z, 1.2)) continue;
       if (def.nearWater && !this.nearWater(x, z)) continue;
       if (this.animals.some((a) => Math.hypot(a.pos.x - x, a.pos.z - z) < 9)) continue;
@@ -740,6 +788,8 @@ export class GroundAnimals {
     const wary = createWary(bubbleY);
     const note = createNote(bubbleY);
     model.root.add(alert, wary, note);
+    const zzz = def.naps ? createZzz(bubbleY) : null;
+    if (zzz) model.root.add(zzz);
     model.root.scale.setScalar(0);
     this.group.add(model.root);
     const a: Animal = {
@@ -749,6 +799,7 @@ export class GroundAnimals {
       alert,
       wary,
       note,
+      zzz,
       pos: new THREE.Vector3(x, this.world.heightAt(x, z), z),
       heading,
       target: new THREE.Vector3(x, 0, z),
@@ -858,7 +909,7 @@ export class GroundAnimals {
     if (this.sleepy && a.def.sleepsAtNight && a.curiousTime <= 0 && (a.state === 'idle' || a.state === 'graze' || a.state === 'sit')) {
       this.setState(a, 'sleep', 999);
     }
-    if (a.state === 'sleep' && !this.sleepy) this.setState(a, 'idle', 1);
+    if (a.state === 'sleep' && !this.sleepy && !a.def.naps) this.setState(a, 'idle', 1);
 
     // Wary or curious: stop and look at the car. Curious hedgehogs trundle closer.
     if (a.waryTime >= 0 || a.curiousTime > 0) {
@@ -888,7 +939,9 @@ export class GroundAnimals {
         else this.setState(a, 'idle', 2 + Math.random());
         break;
       case 'fox':
-        if (r < 0.4 && this.pickTarget(a, 10)) this.setState(a, 'walk', 8);
+        // Cats curl up for a nap now and then, whatever the time of day.
+        if (a.def.naps && r < 0.22) this.setState(a, 'sleep', 8 + Math.random() * 10);
+        else if (r < 0.4 && this.pickTarget(a, 10)) this.setState(a, 'walk', 8);
         else if (r < 0.65) this.setState(a, 'sit', 3 + Math.random() * 3);
         else if (r < 0.85) this.setState(a, 'pounce', 1.3);
         else this.setState(a, 'sniff', 2);
@@ -907,7 +960,8 @@ export class GroundAnimals {
       const r = 2 + Math.random() * (range - 2);
       const x = a.pos.x + Math.cos(ang) * r;
       const z = a.pos.z + Math.sin(ang) * r;
-      if (this.world.biomeWeight(x, z, a.def.biome) > 0.4 && this.walkable(x, z, 0.8) && (!a.def.nearWater || this.nearWater(x, z))) {
+      const inBiome = a.def.biome === 'anywhere' || this.world.biomeWeight(x, z, a.def.biome) > 0.4;
+      if (inBiome && this.walkable(x, z, 0.8) && (!a.def.nearWater || this.nearWater(x, z))) {
         a.target.set(x, 0, z);
         return true;
       }
@@ -1077,12 +1131,20 @@ export class GroundAnimals {
     if (neck) neck.rotation.x += (neckDip - neck.rotation.x) * Math.min(1, 6 * dt);
 
     const wide = a.state === 'shock' || a.state === 'flee' ? 1.7 : a.curiousTime > 0 ? 1.3 : 1;
-    for (const eye of eyes) eye.scale.setScalar(a.eyeSize * wide);
+    // Asleep: eyes shut to little lines.
+    const shut = a.state === 'sleep' ? 0.18 : 1;
+    for (const eye of eyes) eye.scale.set(a.eyeSize * wide, a.eyeSize * wide * shut, a.eyeSize * wide);
 
     // Bubbles.
     a.alertTime += dt;
     a.noteTime += dt;
     const bubble = 0.45 / s;
+    if (a.zzz) animateZzz(a.zzz, a.state === 'sleep', a.time, bubble, a.def.height + 0.3 + a.def.sleepDrop);
+    // Mythic sparkles circle slowly, rising and falling.
+    if (a.model.aura) {
+      a.model.aura.rotation.y += dt * 1.1;
+      a.model.aura.position.y = a.def.height * 0.6 + Math.sin(a.time * 1.7) * 0.06;
+    }
     animateAlert(a.alert, a.alertTime, bubble);
     animateAlert(a.note, a.noteTime, bubble, 1.2);
     animateHold(a.wary, a.waryTime, bubble);

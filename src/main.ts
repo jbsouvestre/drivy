@@ -433,6 +433,7 @@ function trackPhoto(species: string | null, stars: number, result: RecordResult 
       species,
       biome: def?.biome ?? 'unknown',
       is_legendary: !!def?.legendary,
+      is_mythic: !!def?.mythic,
       species_found: journal.progress().species,
     });
   }
@@ -749,7 +750,7 @@ async function develop(shot: NonNullable<ReturnType<typeof scoreShot>>, grabbed:
 requestAnimationFrame(frame);
 
 // Dev-only handle for poking at the game from the browser console (stripped from production builds).
-if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig, groundAnimals, wetland, ducks } });
+if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig, photo, groundAnimals, wetland, ducks } });
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);

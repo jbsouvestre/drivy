@@ -36,7 +36,10 @@ export type SpeciesId =
   | 'aurora-fox'
   | 'snail'
   | 'badger'
-  | 'glow-snail';
+  | 'glow-snail'
+  | 'croche-patte'
+  | 'kiki'
+  | 'chablis';
 
 export interface Behavior {
   id: string;
@@ -46,13 +49,16 @@ export interface Behavior {
 export interface Species {
   id: SpeciesId;
   name: string;
-  biome: BiomeId;
+  /** Where it lives; mythic animals turn up anywhere. */
+  biome: BiomeId | 'anywhere';
   emoji: string;
   /** Shown on the journal page before the species has been photographed. */
   hint: string;
   rare: boolean;
   /** One per biome: very rare, glows a little, and makes for a prized photo. */
   legendary?: boolean;
+  /** Above legendary: the three cats. Any biome, day or night, one at a time, rarest of all. */
+  mythic?: boolean;
   /** Behaviours to collect. The first one is the species' everyday state. */
   behaviors: Behavior[];
 }
@@ -86,6 +92,8 @@ const FROG_BEHAVIORS = [b('sitting', 'Sitting'), b('croaking', 'Croaking'), b('h
 const LIZARD_BEHAVIORS = [b('trotting', 'Scurrying'), b('sitting', 'Basking'), b('pouncing', 'Snapping'), b('curious', 'Curious'), b('sleeping', 'Sleeping'), b('startled', 'Startled')];
 const SEAL_BEHAVIORS = [b('shuffling', 'Flopping'), b('sniffing', 'Sunbathing'), b('curious', 'Curious'), b('startled', 'Startled')];
 const SNAIL_BEHAVIORS = [b('shuffling', 'Gliding'), b('sniffing', 'Munching'), b('curled', 'In its shell'), b('curious', 'Curious'), b('rain', 'After the rain')];
+// The cats reuse the fox's behaviour set (same ids), with cat labels.
+const CAT_BEHAVIORS = [b('trotting', 'Roaming'), b('sitting', 'Sitting pretty'), b('pouncing', 'Pouncing'), b('sleeping', 'Napping'), b('curious', 'Curious'), b('startled', 'Startled')];
 const OWL_BEHAVIORS = [b('perched', 'Perched'), b('hooting', 'Hooting'), b('head-tilt', 'Head tilt'), b('curious', 'Curious'), b('flying', 'Flying'), b('startled', 'Startled')];
 
 export const SPECIES: Species[] = [
@@ -362,6 +370,37 @@ export const SPECIES: Species[] = [
     rare: true,
     legendary: true,
     behaviors: SNAIL_BEHAVIORS,
+  },
+  // ---- Mythic: the three cats (any biome, day or night, one at a time) ----
+  {
+    id: 'croche-patte',
+    name: 'Croche-Patte',
+    biome: 'anywhere',
+    emoji: '🐈',
+    hint: 'A big, square, white cat with a grey striped tail. Naps wherever it likes.',
+    rare: true,
+    mythic: true,
+    behaviors: CAT_BEHAVIORS,
+  },
+  {
+    id: 'kiki',
+    name: 'Kiki',
+    biome: 'anywhere',
+    emoji: '🐈',
+    hint: 'Grey and white, shaped like an eggplant, with a tail bent just so.',
+    rare: true,
+    mythic: true,
+    behaviors: CAT_BEHAVIORS,
+  },
+  {
+    id: 'chablis',
+    name: 'Chablis',
+    biome: 'anywhere',
+    emoji: '🐈',
+    hint: 'A slim grey tabby with white paws and pale blue eyes, quick on its feet.',
+    rare: true,
+    mythic: true,
+    behaviors: CAT_BEHAVIORS,
   },
 ];
 

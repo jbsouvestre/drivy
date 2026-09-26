@@ -1268,6 +1268,25 @@ body.photo-mode .honk-bubble {
   color: #7a5a1e;
 }
 
+/* Mythic (the cats): a pastel rainbow, a step above legendary gold. */
+.rare.mythic,
+.tag.mythic {
+  background: linear-gradient(90deg, #ffe08a, #ffc6e0, #c9b8ff, #b8ecff);
+  color: #5b4e6b;
+}
+
+.card.mythic-found {
+  box-shadow:
+    0 4px 0 #c9b8ff,
+    0 0 0 2px #ffe08a;
+}
+
+.cats-section {
+  padding: 14px 16px 16px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #fff6d8, #fbe3f0 50%, #e6ddff);
+}
+
 /* ---------- photo requests ---------- */
 
 .post {

@@ -96,3 +96,49 @@ export function animateHold(sprite: THREE.Sprite, time: number, size: number): v
   const s = size * ((1 + 2.7 * t * t * t + 1.7 * t * t) + Math.sin(time * 6) * 0.05);
   sprite.scale.set(s * (sprite.userData.aspect as number), s, 1);
 }
+
+let zzzMaterial: THREE.SpriteMaterial | null = null;
+
+/** Sleepy "z Z z" drifting above a napping animal (no bubble, just soft letters). */
+export function createZzz(y: number): THREE.Sprite {
+  if (!zzzMaterial) {
+    const w = 256;
+    const h = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineJoin = 'round';
+    // Three letters, growing and rising to the right.
+    for (const [text, x, yy, size] of [
+      ['z', 40, 112, 44],
+      ['Z', 104, 88, 62],
+      ['z', 184, 58, 46],
+    ] as const) {
+      ctx.font = `bold ${size}px Fredoka, system-ui, sans-serif`;
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = '#ffffff';
+      ctx.strokeText(text, x, yy);
+      ctx.fillStyle = '#9b86d6';
+      ctx.fillText(text, x, yy);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    zzzMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false, fog: false });
+  }
+  const sprite = new THREE.Sprite(zzzMaterial);
+  sprite.position.y = y;
+  sprite.renderOrder = 10;
+  sprite.visible = false;
+  return sprite;
+}
+
+/** Keep the Zzz gently bobbing and breathing while `sleeping`; hide it otherwise. */
+export function animateZzz(sprite: THREE.Sprite, sleeping: boolean, time: number, size: number, baseY: number): void {
+  sprite.visible = sleeping;
+  if (!sleeping) return;
+  const breathe = 1 + Math.sin(time * 1.8) * 0.08;
+  sprite.scale.set(size * 2 * breathe, size * breathe, 1);
+  sprite.position.set(size * 0.5, baseY + Math.sin(time * 1.3) * 0.08, 0);
+}
