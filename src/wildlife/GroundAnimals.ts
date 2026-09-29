@@ -523,9 +523,9 @@ function cat(
 
 /**
  * Chance per spawn check that a cat turns up (each cat is checked about every
- * 2 s): roughly one cat per 10 minutes of play.
+ * 2 s): roughly one cat per 6 minutes of play.
  */
-const MYTHIC_CHANCE = 0.0012;
+const MYTHIC_CHANCE = 0.002;
 
 /** Animals appear in this ring around the player (inside the right biome) and leave beyond DESPAWN_RADIUS. */
 /** Animal kinds considered per spawn check (checks run 4× a second). */

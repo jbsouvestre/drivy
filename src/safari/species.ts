@@ -397,7 +397,7 @@ export const SPECIES: Species[] = [
     name: 'Chablis',
     biome: 'anywhere',
     emoji: '🐈',
-    hint: 'A slim grey tabby with white paws and pale blue eyes, quick on its feet.',
+    hint: 'A slim grey tabby with white paws, quick on its feet.',
     rare: true,
     mythic: true,
     behaviors: CAT_BEHAVIORS,
