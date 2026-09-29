@@ -224,6 +224,15 @@ export class Squirrels {
     }
   }
 
+  /** Cheat console: a squirrel on the free round tree closest to (x, z), if there's one within reach. */
+  spawnNear(x: number, z: number): boolean {
+    const trees = this.freeTreesNear(x, z, 30, 0);
+    if (trees.length === 0) return false;
+    trees.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+    this.spawn(trees[0]);
+    return true;
+  }
+
   private freeTreesNear(x: number, z: number, max: number, min: number): Prop[] {
     this.world.collidersNear(x, z, max, this.nearby);
     const out: Prop[] = [];

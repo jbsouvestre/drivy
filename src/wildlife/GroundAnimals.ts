@@ -591,6 +591,9 @@ const _near: Collider[] = [];
  * ball when startled. All notice the car, react to the honk and the chime.
  */
 export class GroundAnimals {
+  /** Every species that walks the ground (what the Cheat console can conjure). */
+  static readonly species: SpeciesId[] = Object.values(KINDS).map((d) => d.species);
+
   readonly group = new THREE.Group();
 
   private readonly animals: Animal[] = [];
@@ -759,6 +762,14 @@ export class GroundAnimals {
       return new THREE.Vector3(x, 0, z);
     }
     return null;
+  }
+
+  /** Cheat console: one of `species`, right here, whatever the biome, time or rarity. */
+  spawnSpecies(species: SpeciesId, x: number, z: number): boolean {
+    const kind = (Object.keys(KINDS) as Kind[]).find((k) => KINDS[k].species === species);
+    if (!kind) return false;
+    this.makeAnimal(kind, x, z, Math.random() * Math.PI * 2);
+    return true;
   }
 
   private spawnGroup(kind: Kind, at: THREE.Vector3): void {

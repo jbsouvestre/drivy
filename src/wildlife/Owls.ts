@@ -185,8 +185,25 @@ export class Owls {
     if (pines.length > 0) this.spawn(pines[Math.floor(Math.random() * pines.length)].prop);
   }
 
-  private spawn(tree: Prop): void {
-    const snowy = Math.random() < SNOWY_CHANCE;
+  /** Cheat console: an owl (or a snowy owl) on the free pine closest to (x, z), if there's one within reach. */
+  spawnNear(x: number, z: number, snowy: boolean): boolean {
+    this.world.collidersNear(x, z, 40, this.nearby);
+    let best: Prop | null = null;
+    let bestDist = Infinity;
+    for (const c of this.nearby) {
+      if (c.prop?.kind !== 'pineTree' || this.occupied.has(c.prop)) continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < bestDist) {
+        best = c.prop;
+        bestDist = d;
+      }
+    }
+    if (!best) return false;
+    this.spawn(best, snowy);
+    return true;
+  }
+
+  private spawn(tree: Prop, snowy = Math.random() < SNOWY_CHANCE): void {
     const model = createOwl(snowy ? OWL_COLORS.snowy : Math.random() < 0.5 ? OWL_COLORS.lavender : OWL_COLORS.cocoa);
     model.root.scale.setScalar(0);
     const alert = createAlert(1.65);

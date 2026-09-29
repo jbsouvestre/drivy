@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { CameraRig } from './game/CameraRig';
 import { Car, type DriveInput } from './game/Car';
+import { installCheats } from './game/Cheat';
 import { audioContext, playBells, playChime, playEcho, playFoghorn, playLaunch, playPoof, playShutter, playSquash, playTwinkle } from './game/audio';
 import { Ambience } from './game/Ambience';
 import { Horn } from './game/Horn';
@@ -748,6 +749,9 @@ async function develop(shot: NonNullable<ReturnType<typeof scoreShot>>, grabbed:
   });
 }
 requestAnimationFrame(frame);
+
+// The Cheat console toolkit (spawn animals, change weather and time): Cheat.help() in the browser console.
+installCheats({ car, groundAnimals, squirrels, owls, weather, dayNight });
 
 // Dev-only handle for poking at the game from the browser console (stripped from production builds).
 if (import.meta.env.DEV) Object.assign(window, { drivy: { car, world, rig, photo, groundAnimals, wetland, ducks } });
